@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#111214">
+<title>Trainer Tracker</title>
+<style>
+  :root {
+    --bg: #111214; --card: #1c1d21; --line: #2a2c31; --text: #f2f3f5;
+    --muted: #9a9ea8; --accent: #fc4c02; --ok: #3ddc84; --err: #ff6b6b;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  body { padding: env(safe-area-inset-top) 16px calc(env(safe-area-inset-bottom) + 16px); min-height: 100dvh;
+    display: flex; flex-direction: column; }
+  header { display: flex; align-items: center; gap: 8px; padding: 12px 0; }
+  header h1 { font-size: 20px; margin: 0; flex: 1; }
+  .icon-btn { background: var(--card); border: 1px solid var(--line); color: var(--text);
+    border-radius: 12px; height: 40px; min-width: 40px; padding: 0 12px; font-size: 15px; }
+  .icon-btn.on { color: var(--ok); border-color: var(--ok); }
+  .banner { background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 12px 14px; margin-bottom: 10px; color: var(--muted); font-size: 14px; }
+  .banner.err { color: var(--err); border-color: var(--err); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+    padding: 10px; text-align: center; display: flex; flex-direction: column; justify-content: center; }
+  .label { font-size: 12px; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+  .val { font-size: clamp(40px, 13vw, 64px); font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .val small { font-size: 16px; font-weight: 500; color: var(--muted); margin-left: 4px; }
+  .sub { font-size: 12px; color: var(--muted); min-height: 16px; }
+  .time .val { font-size: clamp(52px, 18vw, 88px); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0; flex: 1; }
+  .controls { display: flex; gap: 10px; }
+  button.big { flex: 1; height: 60px; border-radius: 16px; font-size: 18px; font-weight: 600;
+    border: none; background: var(--accent); color: #fff; }
+  button.big.alt { background: transparent; border: 2px solid var(--line); color: var(--text); }
+  button:disabled { opacity: .4; }
+  /* sheets */
+  .sheet { position: fixed; inset: 0; background: var(--bg); overflow-y: auto; display: none;
+    padding: env(safe-area-inset-top) 16px calc(env(safe-area-inset-bottom) + 24px); z-index: 10; }
+  .sheet.open { display: block; }
+  .sheet h2 { font-size: 20px; margin: 0; flex: 1; }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .row .k { color: var(--muted); }
+  .row .v { font-weight: 600; font-variant-numeric: tabular-nums; }
+  label.field { display: block; margin: 14px 0; font-size: 14px; color: var(--muted); }
+  label.field input { display: block; width: 100%; margin-top: 6px; background: var(--card);
+    border: 1px solid var(--line); color: var(--text); border-radius: 12px; padding: 12px; font-size: 16px; }
+  .stack button.big { flex: none; }
+  .stack { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+  .note { color: var(--muted); font-size: 13px; margin-top: 14px; }
+  .dev { display: flex; align-items: center; gap: 10px; padding: 12px; background: var(--card);
+    border: 1px solid var(--line); border-radius: 14px; margin-top: 10px; }
+  .dev .name { flex: 1; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--ok); }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Trainer Tracker</h1>
+  <button class="icon-btn" id="btnSensors">Sensors</button>
+  <button class="icon-btn" id="btnSettings" aria-label="Settings">⚙</button>
+</header>
+
+<div id="banner" class="banner" hidden></div>
+
+<div class="card time">
+  <div class="label">TIME</div>
+  <div class="val" id="vTime">00:00</div>
+</div>
+<div class="grid">
+  <div class="card"><div class="label">POWER</div>
+    <div class="val"><span id="vPower">0</span><small>W</small></div><div class="sub" id="sPower"></div></div>
+  <div class="card"><div class="label">CADENCE</div>
+    <div class="val"><span id="vCad">--</span><small>rpm</small></div><div class="sub" id="sCad">needs cadence sensor</div></div>
+  <div class="card"><div class="label">SPEED</div>
+    <div class="val"><span id="vSpeed">0.0</span><small>km/h</small></div><div class="sub" id="sSpeed">estimated from watts</div></div>
+  <div class="card"><div class="label">DISTANCE</div>
+    <div class="val"><span id="vDist">0.00</span><small>km</small></div><div class="sub" id="sDist">0 kcal</div></div>
+</div>
+<div class="controls" id="controls"></div>
+
+<!-- Sensors sheet -->
+<section class="sheet" id="sheetSensors">
+  <header><h2>Sensors</h2><button class="icon-btn" data-close>Done</button></header>
+  <div class="stack">
+    <button class="big" id="btnAddTrainer">Connect trainer</button>
+    <button class="big alt" id="btnAddCadence">Add cadence sensor</button>
+  </div>
+  <div id="devList"></div>
+  <p class="note">Start pedalling first so the T100 wakes up. Close Zwift and the Magene app, because
+    the trainer accepts only one Bluetooth connection at a time. The T100 sends watts only. Add any Bluetooth
+    cadence sensor for rpm.</p>
+</section>
+
+<!-- Settings sheet -->
+<section class="sheet" id="sheetSettings">
+  <header><h2>Settings</h2><button class="icon-btn" data-close>Done</button></header>
+  <label class="field">Your weight (kg), used to estimate speed
+    <input id="inKg" type="number" inputmode="decimal" min="30" max="200"></label>
+  <h3 style="margin-top:24px">Strava</h3>
+  <div class="row"><span class="k">Status</span><span class="v" id="stravaStatus">Not connected</span></div>
+  <label class="field">Client ID <input id="inClientId" inputmode="numeric" autocomplete="off"></label>
+  <label class="field">Client Secret <input id="inSecret" type="password" autocomplete="off"></label>
+  <div class="stack">
+    <button class="big" id="btnStrava">Connect Strava</button>
+    <button class="big alt" id="btnStravaOff">Disconnect Strava</button>
+  </div>
+  <p class="note">These are stored only in this browser on your phone. Get them from
+    <a href="https://www.strava.com/settings/api" target="_blank">strava.com/settings/api</a>, and set
+    <b>Authorization Callback Domain</b> to <b id="cbDomain"></b>.</p>
+</section>
+
+<!-- Summary sheet -->
+<section class="sheet" id="sheetSummary">
+  <header><h2>Ride summary</h2></header>
+  <div id="summaryRows"></div>
+  <label class="field">Activity name <input id="inName" value="Indoor ride"></label>
+  <div class="stack">
+    <button class="big" id="btnUpload">Upload to Strava</button>
+    <button class="big alt" id="btnDownload">Save .tcx file</button>
+    <button class="big alt" id="btnDone">Done / discard</button>
+  </div>
+  <div id="uploadStatus" class="note" style="text-align:center"></div>
+</section>
+
+<script>
+// ============================================================ BLE parsers
+const u16 = (d, o) => d.getUint16(o, true);
+const s16 = (d, o) => d.getInt16(o, true);
+const u32 = (d, o) => d.getUint32(o, true);
+
+function parseCyclingPower(d) {           // 0x2A63 (Magene T100)
+  const flags = u16(d, 0), r = { power: Math.max(0, s16(d, 2)) };
+  let o = 4;
+  if (flags & 0x01) o += 1;
+  if (flags & 0x04) o += 2;
+  if (flags & 0x10 && d.byteLength >= o + 6) { r.wheelRevs = u32(d, o); r.wheelTime = u16(d, o + 4); o += 6; }
+  if (flags & 0x20 && d.byteLength >= o + 4) { r.crankRevs = u16(d, o); r.crankTime = u16(d, o + 2); }
+  return r;
+}
+function parseCsc(d) {                    // 0x2A5B
+  const flags = d.getUint8(0), r = {};
+  let o = 1;
+  if (flags & 0x01 && d.byteLength >= o + 6) { r.wheelRevs = u32(d, o); r.wheelTime = u16(d, o + 4); o += 6; }
+  if (flags & 0x02 && d.byteLength >= o + 4) { r.crankRevs = u16(d, o); r.crankTime = u16(d, o + 2); }
+  return r;
+}
+function parseFtms(d) {                   // 0x2AD2
+  const flags = u16(d, 0), has = b => (flags >> b) & 1, r = {};
+  let o = 2;
+  if (!has(0)) { r.speed = u16(d, o) / 100; o += 2; }
+  if (has(1)) o += 2;
+  if (has(2)) { r.cadence = u16(d, o) / 2; o += 2; }
+  if (has(3)) o += 2;
+  if (has(4)) o += 3;
+  if (has(5)) o += 2;
+  if (has(6)) r.power = Math.max(0, s16(d, o));
+  return r;
+}
+class RevRate {                           // cumulative counters -> rpm
+  constructor(unitsPerSec, mask = 0xFFFF) { this.u = unitsPerSec; this.mask = mask; this.rpm = 0; this.lastChange = 0; }
+  update(revs, time, now = Date.now()) {
+    if (this.revs !== undefined) {
+      const dr = this.mask === 0xFFFF ? (revs - this.revs) & 0xFFFF : (revs - this.revs) >>> 0;
+      const dt = (time - this.time) & 0xFFFF;
+      if (dr > 0 && dt > 0) { this.rpm = dr * 60 * this.u / dt; this.lastChange = now; }
+      else if (now - this.lastChange > 3000) this.rpm = 0;
+    }
+    this.revs = revs; this.time = time;
+    return this.rpm;
+  }
+}
+function speedFromPower(w, kg = 75) {     // flat road, like Zwift
+  if (w <= 0) return 0;
+  const a = 0.5 * 1.225 * 0.32, b = 0.004 * (kg + 9) * 9.81;
+  let v = Math.cbrt(w / a);
+  for (let i = 0; i < 30; i++) v -= (a * v ** 3 + b * v - w) / (3 * a * v * v + b);
+  return v * 3.6;
+}
+
+// ============================================================ State
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+  del(k) { try { localStorage.removeItem(k); } catch {} },
+};
+const live = { power: 0, cadence: 0, speed: 0, hasCadence: false, speedEstimated: true,
+               lastPower: 0, lastCad: 0 };
+const settings = { kg: store.get('kg', 75), wheel: 2.105 };
+const devices = [];                       // {device, kind}
+const cpsCrank = new RevRate(1024), cpsWheel = new RevRate(2048, 0xFFFFFFFF), cscCrank = new RevRate(1024);
+
+const ride = { state: 'idle', startedAt: null, elapsed: 0, dist: 0, joules: 0, maxPower: 0, samples: [],
+               activeMs: 0, resumedAt: 0, lastTick: 0, timer: null };
+
+// ============================================================ Bluetooth
+const SVC = { cps: 0x1818, csc: 0x1816, ftms: 0x1826 };
+const CHR = { cps: 0x2A63, csc: 0x2A5B, ftms: 0x2AD2 };
+
+function showBanner(msg, err = false) {
+  const b = document.getElementById('banner');
+  b.hidden = !msg; b.textContent = msg || ''; b.className = 'banner' + (err ? ' err' : '');
+}
+
+async function connectSensor(kind) {
+  if (!navigator.bluetooth) {
+    showBanner('This browser can\'t use Bluetooth. On iPhone, open this page in the free "Bluefy" app.', true);
+    return;
+  }
+  try {
+    const filters = kind === 'trainer'
+      ? [{ services: [SVC.cps] }, { services: [SVC.ftms] }]
+      : [{ services: [SVC.csc] }, { services: [SVC.cps] }];
+    const device = await navigator.bluetooth.requestDevice({
+      filters, optionalServices: [SVC.cps, SVC.csc, SVC.ftms] });
+    await attach(device);
+  } catch (e) {
+    if (e.name !== 'NotFoundError') showBanner('Bluetooth: ' + e.message, true);
+  }
+}
+
+async function attach(device) {
+  const server = await device.gatt.connect();
+  let found = false;
+  for (const [key, svc] of Object.entries(SVC)) {
+    let service;
+    try { service = await server.getPrimaryService(svc); } catch { continue; }
+    let ch;
+    try { ch = await service.getCharacteristic(CHR[key]); } catch { continue; }
+    ch.addEventListener('characteristicvaluechanged', e => onData(key, e.target.value));
+    await ch.startNotifications();
+    found = true;
+  }
+  if (!found) { device.gatt.disconnect(); throw new Error('No power, cadence or FTMS data on this device'); }
+  if (!devices.find(d => d.device === device)) devices.push({ device });
+  device.addEventListener('gattserverdisconnected', () => onDisconnect(device));
+  showBanner('');
+  renderDevices();
+}
+
+async function onDisconnect(device) {
+  renderDevices();
+  // Try to reconnect automatically (trainers drop out when you stop pedalling)
+  for (let i = 0; i < 5 && devices.some(d => d.device === device); i++) {
+    showBanner(`${device.name || 'Sensor'} disconnected, reconnecting…`, true);
+    await new Promise(r => setTimeout(r, 2000));
+    try { await attach(device); return; } catch {}
+  }
+}
+
+function onData(kind, dv) {
+  const now = Date.now();
+  if (kind === 'cps') {
+    const r = parseCyclingPower(dv);
+    live.power = r.power; live.lastPower = now;
+    if (r.crankRevs !== undefined) { live.cadence = cpsCrank.update(r.crankRevs, r.crankTime); live.hasCadence = true; live.lastCad = now; }
+    if (r.wheelRevs !== undefined) {
+      live.speed = cpsWheel.update(r.wheelRevs, r.wheelTime) * settings.wheel * 60 / 1000; live.speedEstimated = false;
+    } else estimateSpeed();
+  } else if (kind === 'csc') {
+    const r = parseCsc(dv);
+    if (r.crankRevs !== undefined) { live.cadence = cscCrank.update(r.crankRevs, r.crankTime); live.hasCadence = true; live.lastCad = now; }
+  } else if (kind === 'ftms') {
+    const r = parseFtms(dv);
+    if (r.power !== undefined) { live.power = r.power; live.lastPower = now; }
+    if (r.cadence !== undefined) { live.cadence = r.cadence; live.hasCadence = true; live.lastCad = now; }
+    if (r.speed !== undefined) { live.speed = r.speed; live.speedEstimated = false; } else estimateSpeed();
+  }
+  render();
+}
+function estimateSpeed() { live.speedEstimated = true; live.speed = speedFromPower(live.power, settings.kg); }
+
+// Zero values when a sensor goes quiet (stopped pedalling)
+setInterval(() => {
+  const now = Date.now();
+  if (now - live.lastPower > 3000 && live.power) { live.power = 0; if (live.speedEstimated) live.speed = 0; }
+  if (now - live.lastCad > 3000 && live.cadence) live.cadence = 0;
+  render();
+}, 1000);
+
+// ============================================================ Recording
+let wakeLock = null;
+async function keepAwake(on) {
+  try {
+    if (on && 'wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
+    else if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch {}
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && ride.state === 'riding') keepAwake(true);
+});
+
+function startRide() {
+  Object.assign(ride, { state: 'riding', startedAt: new Date(), elapsed: 0, dist: 0, joules: 0,
+    maxPower: 0, samples: [], activeMs: 0, activeSec: 0 });
+  resumeRide();
+}
+function resumeRide() {
+  ride.state = 'riding'; ride.resumedAt = ride.lastTick = Date.now();
+  ride.timer = setInterval(tick, 1000);
+  keepAwake(true); render();
+}
+function pauseRide() {
+  tick(); clearInterval(ride.timer);
+  ride.activeMs += Date.now() - ride.resumedAt; ride.state = 'paused'; render();
+}
+function finishRide() { ride.state = 'finished'; keepAwake(false); openSummary(); render(); }
+function tick() {
+  if (ride.state !== 'riding') return;
+  const now = Date.now(), dt = Math.min((now - ride.lastTick) / 1000, 5); // cap gaps
+  ride.lastTick = now;
+  ride.activeSec = (ride.activeMs + now - ride.resumedAt) / 1000;
+  ride.elapsed = Math.floor(ride.activeSec);
+  ride.dist += live.speed / 3.6 * dt;
+  ride.joules += live.power * dt;
+  ride.maxPower = Math.max(ride.maxPower, live.power);
+  ride.samples.push({ t: new Date(now), p: live.power, c: live.cadence, s: live.speed, d: ride.dist });
+  render();
+}
+const avg = {
+  power: () => ride.activeSec ? ride.joules / ride.activeSec : 0,
+  speed: () => ride.activeSec ? (ride.dist / 1000) / (ride.activeSec / 3600) : 0,
+  cadence: () => { const c = ride.samples.filter(s => s.c > 0); return c.length ? c.reduce((a, s) => a + s.c, 0) / c.length : 0; },
+};
+
+// ============================================================ TCX
+function iso(t) { return t.toISOString().replace(/\.\d+Z$/, 'Z'); }
+function buildTcx(name) {
+  const kcal = Math.round(ride.joules / 1000);
+  const pts = ride.samples.map(s =>
+    `<Trackpoint><Time>${iso(s.t)}</Time><DistanceMeters>${s.d.toFixed(1)}</DistanceMeters>` +
+    (s.c > 0 ? `<Cadence>${Math.min(254, Math.round(s.c))}</Cadence>` : '') +
+    `<Extensions><ns3:TPX><ns3:Speed>${(s.s / 3.6).toFixed(2)}</ns3:Speed><ns3:Watts>${s.p}</ns3:Watts></ns3:TPX></Extensions></Trackpoint>`
+  ).join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2" xmlns:ns3="http://www.garmin.com/xmlschemas/ActivityExtension/v2">
+<Activities><Activity Sport="Biking"><Id>${iso(ride.startedAt)}</Id>
+<Lap StartTime="${iso(ride.startedAt)}"><TotalTimeSeconds>${ride.elapsed}</TotalTimeSeconds>
+<DistanceMeters>${ride.dist.toFixed(1)}</DistanceMeters><Calories>${kcal}</Calories>
+<Intensity>Active</Intensity><TriggerMethod>Manual</TriggerMethod>
+<Track>
+${pts}
+</Track></Lap></Activity></Activities></TrainingCenterDatabase>`;
+}
+
+// ============================================================ Strava
+const redirectUri = location.origin + location.pathname;
+const strava = {
+  get tokens() { return store.get('strava', null); },
+  connect() {
+    const id = document.getElementById('inClientId').value.trim();
+    const secret = document.getElementById('inSecret').value.trim();
+    if (!id || !secret) return showBanner('Enter your Strava Client ID and Secret in Settings first.', true);
+    store.set('strava_app', { id, secret });
+    const url = 'https://www.strava.com/oauth/authorize?' + new URLSearchParams({
+      client_id: id, redirect_uri: redirectUri, response_type: 'code',
+      approval_prompt: 'auto', scope: 'activity:write,read' });
+    location.href = url;
+  },
+  async token(params) {
+    const app = store.get('strava_app', null);
+    if (!app) throw new Error('Strava app details missing');
+    const res = await fetch('https://www.strava.com/oauth/token', { method: 'POST',
+      body: new URLSearchParams({ client_id: app.id, client_secret: app.secret, ...params }) });
+    const j = await res.json();
+    if (!res.ok) throw new Error(j.message || 'Strava login failed');
+    const prev = this.tokens || {};
+    store.set('strava', { access: j.access_token, refresh: j.refresh_token, expires: j.expires_at,
+      name: j.athlete ? `${j.athlete.firstname} ${j.athlete.lastname}` : prev.name });
+  },
+  async access() {
+    const t = this.tokens;
+    if (!t) throw new Error('Connect Strava in Settings first');
+    if (Date.now() / 1000 > t.expires - 60) await this.token({ grant_type: 'refresh_token', refresh_token: t.refresh });
+    return this.tokens.access;
+  },
+  async upload(tcx, name) {
+    const token = await this.access();
+    const fd = new FormData();
+    fd.append('file', new Blob([tcx], { type: 'application/xml' }), `ride_${Date.now()}.tcx`);
+    fd.append('data_type', 'tcx'); fd.append('name', name); fd.append('trainer', '1');
+    const res = await fetch('https://www.strava.com/api/v3/uploads', { method: 'POST',
+      headers: { Authorization: 'Bearer ' + token }, body: fd });
+    const j = await res.json();
+    if (!res.ok) throw new Error(j.message || 'Upload failed');
+    for (let i = 0; i < 10; i++) {
+      await new Promise(r => setTimeout(r, 2000));
+      const s = await (await fetch(`https://www.strava.com/api/v3/uploads/${j.id}`,
+        { headers: { Authorization: 'Bearer ' + token } })).json();
+      if (s.error) throw new Error(s.error);
+      if (s.activity_id) return s.activity_id;
+    }
+    return null;
+  },
+};
+// Handle the redirect back from Strava's login page
+(async () => {
+  const q = new URLSearchParams(location.search);
+  if (q.get('code')) {
+    history.replaceState(null, '', redirectUri);
+    try { await strava.token({ grant_type: 'authorization_code', code: q.get('code') }); showBanner('Strava connected ✓'); }
+    catch (e) { showBanner('Strava: ' + e.message + ' (check the Client Secret)', true); }
+    renderSettings();
+  } else if (q.get('error')) {
+    history.replaceState(null, '', redirectUri);
+    showBanner('Strava login was cancelled.', true);
+  }
+})();
+
+// ============================================================ UI
+const $ = id => document.getElementById(id);
+const fmt = s => { const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60;
+  const p = n => String(n).padStart(2, '0'); return h ? `${h}:${p(m)}:${p(x)}` : `${p(m)}:${p(x)}`; };
+
+function render() {
+  $('vTime').textContent = fmt(ride.elapsed);
+  $('vPower').textContent = Math.round(live.power);
+  $('sPower').textContent = ride.elapsed ? `avg ${Math.round(avg.power())} W` : '';
+  $('vCad').textContent = live.hasCadence ? Math.round(live.cadence) : '--';
+  $('sCad').textContent = live.hasCadence ? (ride.elapsed ? `avg ${Math.round(avg.cadence())}` : '') : 'needs cadence sensor';
+  $('vSpeed').textContent = live.speed.toFixed(1);
+  $('sSpeed').textContent = live.speedEstimated ? 'estimated from watts' : `avg ${avg.speed().toFixed(1)}`;
+  $('vDist').textContent = (ride.dist / 1000).toFixed(2);
+  $('sDist').textContent = `${Math.round(ride.joules / 1000)} kcal`;
+  $('btnSensors').classList.toggle('on', devices.some(d => d.device.gatt.connected));
+  $('btnSensors').textContent = devices.some(d => d.device.gatt.connected) ? 'Connected' : 'Sensors';
+  renderControls();
+}
+let lastControls = '';
+function renderControls() {
+  if (lastControls === ride.state) return;
+  lastControls = ride.state;
+  const c = $('controls'); c.innerHTML = '';
+  const add = (text, fn, alt) => { const b = document.createElement('button');
+    b.className = 'big' + (alt ? ' alt' : ''); b.textContent = text; b.onclick = fn; c.appendChild(b); };
+  if (ride.state === 'idle' || ride.state === 'finished') add('Start ride', startRide);
+  else if (ride.state === 'riding') add('Pause', pauseRide);
+  else { add('Resume', resumeRide); add('Finish', finishRide, true); }
+}
+function renderDevices() {
+  $('devList').innerHTML = devices.map(({ device }) =>
+    `<div class="dev"><span class="dot" style="background:${device.gatt.connected ? 'var(--ok)' : 'var(--err)'}"></span>
+     <span class="name">${(device.name || 'Sensor').replace(/</g, '&lt;')}</span>
+     <span class="sub">${device.gatt.connected ? 'connected' : 'disconnected'}</span></div>`).join('');
+  render();
+}
+function renderSettings() {
+  const t = strava.tokens, app = store.get('strava_app', {});
+  $('inKg').value = settings.kg;
+  $('inClientId').value = app.id || '';
+  $('inSecret').value = app.secret || '';
+  $('stravaStatus').textContent = t ? `Connected${t.name ? ' as ' + t.name : ''}` : 'Not connected';
+  $('cbDomain').textContent = location.hostname || 'your site domain';
+}
+function openSheet(id) { $(id).classList.add('open'); }
+function closeSheets() { document.querySelectorAll('.sheet').forEach(s => s.classList.remove('open')); }
+
+function openSummary() {
+  const rows = [
+    ['Time', fmt(ride.elapsed)], ['Distance', `${(ride.dist / 1000).toFixed(2)} km`],
+    ['Avg power', `${Math.round(avg.power())} W`], ['Max power', `${ride.maxPower} W`],
+    ['Avg cadence', live.hasCadence ? `${Math.round(avg.cadence())} rpm` : '--'],
+    ['Avg speed', `${avg.speed().toFixed(1)} km/h`],
+    ['Energy', `${Math.round(ride.joules / 1000)} kJ (~${Math.round(ride.joules / 1000)} kcal)`],
+  ];
+  $('summaryRows').innerHTML = rows.map(([k, v]) => `<div class="row"><span class="k">${k}</span><span class="v">${v}</span></div>`).join('');
+  $('uploadStatus').textContent = '';
+  $('btnUpload').disabled = !ride.samples.length;
+  openSheet('sheetSummary');
+}
+
+$('btnSensors').onclick = () => { renderDevices(); openSheet('sheetSensors'); };
+$('btnSettings').onclick = () => { renderSettings(); openSheet('sheetSettings'); };
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = closeSheets);
+$('btnAddTrainer').onclick = () => connectSensor('trainer');
+$('btnAddCadence').onclick = () => connectSensor('cadence');
+$('inKg').oninput = e => { const v = parseFloat(e.target.value); if (v >= 30 && v <= 200) { settings.kg = v; store.set('kg', v); } };
+$('btnStrava').onclick = () => strava.connect();
+$('btnStravaOff').onclick = () => { store.del('strava'); renderSettings(); };
+$('btnUpload').onclick = async () => {
+  const st = $('uploadStatus'); $('btnUpload').disabled = true; st.textContent = 'Uploading…';
+  try {
+    const id = await strava.upload(buildTcx(), $('inName').value || 'Indoor ride');
+    st.innerHTML = id ? `Uploaded ✓ <a href="https://www.strava.com/activities/${id}" target="_blank">View on Strava</a>`
+                      : 'Uploaded ✓ Strava is still processing it.';
+  } catch (e) {
+    st.textContent = `Upload failed: ${e.message}. Use "Save .tcx file" and upload it at strava.com/upload/select instead.`;
+    $('btnUpload').disabled = false;
+  }
+};
+$('btnDownload').onclick = async () => {
+  const name = `ride_${iso(ride.startedAt).slice(0, 10)}.tcx`;
+  const file = new File([buildTcx()], name, { type: 'application/xml' });
+  try { if (navigator.canShare && navigator.canShare({ files: [file] })) return await navigator.share({ files: [file] }); } catch {}
+  const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = name; a.click();
+};
+$('btnDone').onclick = () => {
+  if (ride.samples.length > 30 && !confirm('Discard this ride?')) return;
+  Object.assign(ride, { state: 'idle', activeSec: 0, elapsed: 0, dist: 0, joules: 0, maxPower: 0, samples: [] });
+  closeSheets(); render();
+};
+window.addEventListener('beforeunload', e => { if (ride.state === 'riding' || ride.state === 'paused') e.preventDefault(); });
+
+if (!navigator.bluetooth) showBanner('Bluetooth isn\'t available in this browser. On iPhone, open this page in the free "Bluefy" app.');
+
+// ?demo in the URL simulates a rider, for trying the app without the trainer
+if (new URLSearchParams(location.search).has('demo')) {
+  showBanner('Demo mode: simulated trainer data');
+  devices.length = 0; live.hasCadence = true;
+  let crank = 0, ct = 0;
+  setInterval(() => {
+    const w = 180 + Math.round(40 * Math.sin(Date.now() / 7000));
+    const buf = new DataView(new ArrayBuffer(8));
+    crank += 1; ct = (ct + 683) & 0xFFFF; // 1 rev per 0.667 s = 90 rpm
+    buf.setUint16(0, 0x20, true); buf.setInt16(2, w, true);
+    buf.setUint16(4, crank & 0xFFFF, true); buf.setUint16(6, ct, true);
+    onData('cps', buf);
+  }, 1000);
+}
+render();
+</script>
+</body>
+</html>
