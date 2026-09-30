@@ -88,6 +88,7 @@
 <!-- Sensors sheet -->
 <section class="sheet" id="sheetSensors">
   <header><h2>Sensors</h2><button class="icon-btn" data-close>Done</button></header>
+  <div id="sensorMsg" class="banner" hidden></div>
   <div class="stack">
     <button class="big" id="btnAddTrainer">Connect trainer</button>
     <button class="big alt" id="btnAddCadence">Add cadence sensor</button>
@@ -204,8 +205,9 @@ const SVC = { cps: 0x1818, csc: 0x1816, ftms: 0x1826 };
 const CHR = { cps: 0x2A63, csc: 0x2A5B, ftms: 0x2AD2 };
 
 function showBanner(msg, err = false) {
-  const b = document.getElementById('banner');
-  b.hidden = !msg; b.textContent = msg || ''; b.className = 'banner' + (err ? ' err' : '');
+  for (const b of [document.getElementById('banner'), document.getElementById('sensorMsg')]) {
+    b.hidden = !msg; b.textContent = msg || ''; b.className = 'banner' + (err ? ' err' : '');
+  }
 }
 
 async function connectSensor(kind) {
@@ -217,11 +219,13 @@ async function connectSensor(kind) {
     const filters = kind === 'trainer'
       ? [{ services: [SVC.cps] }, { services: [SVC.ftms] }]
       : [{ services: [SVC.csc] }, { services: [SVC.cps] }];
+    showBanner('Looking for Bluetooth devices…');
     const device = await navigator.bluetooth.requestDevice({
       filters, optionalServices: [SVC.cps, SVC.csc, SVC.ftms] });
     await attach(device);
   } catch (e) {
-    if (e.name !== 'NotFoundError') showBanner('Bluetooth: ' + e.message, true);
+    showBanner(e.name === 'NotFoundError' ? 'No device picked. Pedal to wake the trainer, then try again.'
+                                          : 'Bluetooth: ' + e.name + ': ' + e.message, true);
   }
 }
 
@@ -240,7 +244,7 @@ async function attach(device) {
   if (!found) { device.gatt.disconnect(); throw new Error('No power, cadence or FTMS data on this device'); }
   if (!devices.find(d => d.device === device)) devices.push({ device });
   device.addEventListener('gattserverdisconnected', () => onDisconnect(device));
-  showBanner('');
+  showBanner((device.name || 'Trainer') + ' connected ✓');
   renderDevices();
 }
 
