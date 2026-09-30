@@ -27,13 +27,14 @@
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px;
     padding: 10px; text-align: center; display: flex; flex-direction: column; justify-content: center; }
   .label { font-size: 12px; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
-  .val { font-size: clamp(40px, 13vw, 64px); font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .val { font-size: clamp(36px, 11vw, 56px); font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
   .val small { font-size: 16px; font-weight: 500; color: var(--muted); margin-left: 4px; }
   .sub { font-size: 12px; color: var(--muted); min-height: 16px; }
-  .time .val { font-size: clamp(52px, 18vw, 88px); }
+  .time .val { font-size: clamp(48px, 16vw, 80px); }
+  .hr .val { color: #ff5a6e; }
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0; flex: 1; }
   .controls { display: flex; gap: 10px; }
-  button.big { flex: 1; height: 60px; border-radius: 16px; font-size: 18px; font-weight: 600;
+  button.big, a.big { flex: 1; height: 60px; border-radius: 16px; font-size: 18px; font-weight: 600;
     border: none; background: var(--accent); color: #fff; }
   button.big.alt { background: transparent; border: 2px solid var(--line); color: var(--text); }
   button:disabled { opacity: .4; }
@@ -49,7 +50,9 @@
   label.field { display: block; margin: 14px 0; font-size: 14px; color: var(--muted); }
   label.field input { display: block; width: 100%; margin-top: 6px; background: var(--card);
     border: 1px solid var(--line); color: var(--text); border-radius: 12px; padding: 12px; font-size: 16px; }
-  .stack button.big { flex: none; }
+  .stack .big { flex: none; }
+  a.linkbtn { display: flex; align-items: center; justify-content: center; text-decoration: none; background: #2d7ff9; color: #fff; }
+  a.linkbtn[hidden] { display: none; }
   .stack { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
   .note { color: var(--muted); font-size: 13px; margin-top: 14px; }
   .dev { display: flex; align-items: center; gap: 10px; padding: 12px; background: var(--card);
@@ -57,14 +60,37 @@
   .dev .name { flex: 1; }
   .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--ok); }
   a { color: var(--accent); }
+  .rider-btn { flex: 1; text-align: left; font-size: 17px; font-weight: 700; background: none; border: none;
+    color: var(--text); padding: 0; }
+  .rider-btn small { color: var(--muted); font-weight: 500; font-size: 13px; margin-left: 4px; }
+  .rider { background: var(--card); border: 2px solid var(--line); border-radius: 16px; padding: 14px; margin-top: 12px; }
+  .rider.sel { border-color: var(--accent); }
+  .rider h3 { margin: 0 0 4px; display: flex; justify-content: space-between; align-items: center; }
+  .rider .field { margin: 8px 0; }
+  .tabs { display: flex; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 3px; margin: 12px 0; }
+  .tabs button { flex: 1; background: none; border: none; color: var(--muted); padding: 9px; border-radius: 9px; font-size: 14px; font-weight: 600; }
+  .tabs button.on { background: var(--accent); color: #fff; }
+  table.board { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  table.board th { font-size: 12px; color: var(--muted); text-align: right; padding: 8px 4px; letter-spacing: .05em; }
+  table.board th:first-child, table.board td:first-child { text-align: left; }
+  table.board td { padding: 11px 4px; border-top: 1px solid var(--line); text-align: right; font-size: 15px; }
+  table.board td.lead { color: var(--accent); font-weight: 700; }
+  .score { display: flex; gap: 10px; margin-top: 8px; }
+  .score .card { flex: 1; padding: 12px; }
+  .score .val { font-size: 40px; }
+  .hist { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); font-size: 14px; }
+  .hist .who { font-weight: 700; min-width: 44px; }
+  .hist .what { flex: 1; color: var(--muted); }
+  .hist button { background: none; border: none; color: var(--muted); font-size: 18px; padding: 4px 8px; }
+  h3.sec { margin: 22px 0 4px; font-size: 16px; }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>Trainer Tracker</h1>
+  <button class="rider-btn" id="btnRider">Noah<small>▾</small></button>
+  <button class="icon-btn" id="btnBoard">🏆 Stats</button>
   <button class="icon-btn" id="btnSensors">Sensors</button>
-  <button class="icon-btn" id="btnSettings" aria-label="Settings">⚙</button>
 </header>
 
 <div id="banner" class="banner" hidden></div>
@@ -81,8 +107,13 @@
   <div class="card"><div class="label">SPEED</div>
     <div class="val"><span id="vSpeed">0.0</span><small>km/h</small></div><div class="sub" id="sSpeed">estimated from watts</div></div>
   <div class="card"><div class="label">DISTANCE</div>
-    <div class="val"><span id="vDist">0.00</span><small>km</small></div><div class="sub" id="sDist">0 kcal</div></div>
+    <div class="val"><span id="vDist">0.00</span><small>km</small></div><div class="sub" id="sDist"></div></div>
+  <div class="card hr"><div class="label">HEART RATE</div>
+    <div class="val"><span id="vHr">--</span><small>bpm</small></div><div class="sub" id="sHr">connect HR monitor</div></div>
+  <div class="card"><div class="label">CALORIES</div>
+    <div class="val"><span id="vKcal">0</span><small>kcal</small></div><div class="sub" id="sKcal"></div></div>
 </div>
+<div class="sub" style="text-align:center;margin-bottom:8px">Power, cadence, speed and heart rate show 3-second averages</div>
 <div class="controls" id="controls"></div>
 
 <!-- Sensors sheet -->
@@ -90,31 +121,39 @@
   <header><h2>Sensors</h2><button class="icon-btn" data-close>Done</button></header>
   <div id="sensorMsg" class="banner" hidden></div>
   <div class="stack">
-    <button class="big" id="btnAddTrainer">Connect trainer</button>
-    <button class="big alt" id="btnAddCadence">Add cadence sensor</button>
+    <button class="big" id="btnConnect">Connect device</button>
   </div>
   <div id="devList"></div>
-  <p class="note">Start pedalling first so the T100 wakes up. Close Zwift and the Magene app, because
-    the trainer accepts only one Bluetooth connection at a time. The T100 sends watts only. Add any Bluetooth
-    cadence sensor for rpm.</p>
+  <p class="note">Tap <b>Connect device</b> once for each device (trainer, heart rate, cadence sensor) and pick it
+    from the list. Pedal first so the T100 wakes up, and close Zwift and the Magene app.
+    <b>Fitbit Air:</b> turn on Google Health → Fitbit Air → <b>Share heart rate</b> → <b>Always visible</b>.</p>
 </section>
 
-<!-- Settings sheet -->
-<section class="sheet" id="sheetSettings">
-  <header><h2>Settings</h2><button class="icon-btn" data-close>Done</button></header>
-  <label class="field">Your weight (kg), used to estimate speed
-    <input id="inKg" type="number" inputmode="decimal" min="30" max="200"></label>
-  <h3 style="margin-top:24px">Strava</h3>
-  <div class="row"><span class="k">Status</span><span class="v" id="stravaStatus">Not connected</span></div>
-  <label class="field">Client ID <input id="inClientId" inputmode="numeric" autocomplete="off"></label>
-  <label class="field">Client Secret <input id="inSecret" type="password" autocomplete="off"></label>
-  <div class="stack">
-    <button class="big" id="btnStrava">Connect Strava</button>
-    <button class="big alt" id="btnStravaOff">Disconnect Strava</button>
+
+<!-- Riders sheet -->
+<section class="sheet" id="sheetRiders">
+  <header><h2>Who's riding?</h2><button class="icon-btn" data-close>Done</button></header>
+  <div id="riderList"></div>
+  <p class="note">Weight is used to estimate speed and distance, and for W/kg on the leaderboard.</p>
+</section>
+
+<!-- Leaderboard sheet -->
+<section class="sheet" id="sheetBoard">
+  <header><h2>Leaderboard</h2><button class="icon-btn" data-close>Done</button></header>
+  <div class="tabs" id="boardTabs">
+    <button data-p="week">This week</button><button data-p="month">This month</button><button data-p="all">All time</button>
   </div>
-  <p class="note">These are stored only in this browser on your phone. Get them from
-    <a href="https://www.strava.com/settings/api" target="_blank">strava.com/settings/api</a>, and set
-    <b>Authorization Callback Domain</b> to <b id="cbDomain"></b>.</p>
+  <div class="score" id="boardScore"></div>
+  <table class="board" id="boardTable"></table>
+  <h3 class="sec">Recent rides</h3>
+  <div id="boardHist"></div>
+  <h3 class="sec">Backup</h3>
+  <p class="note" style="margin-top:4px">Stats are saved in Bluefy on this phone only. Export a backup now and then.</p>
+  <div class="stack">
+    <button class="big alt" id="btnExport">Export backup</button>
+    <button class="big alt" id="btnImport">Restore backup</button>
+    <input type="file" id="inImport" accept=".json,application/json" hidden>
+  </div>
 </section>
 
 <!-- Summary sheet -->
@@ -123,9 +162,10 @@
   <div id="summaryRows"></div>
   <label class="field">Activity name <input id="inName" value="Indoor ride"></label>
   <div class="stack">
-    <button class="big" id="btnUpload">Upload to Strava</button>
-    <button class="big alt" id="btnDownload">Save .tcx file</button>
-    <button class="big alt" id="btnDone">Done / discard</button>
+    <button class="big" id="btnSend">Send to Strava</button>
+    <a class="big linkbtn" id="stravaLink" href="https://www.strava.com/upload/select" target="_blank" rel="noopener" hidden>Step 2: Open Strava upload page ↗</a>
+    <button class="big alt" id="btnDone">Done</button>
+    <button class="big alt" id="btnDiscard" style="border-color:var(--err);color:var(--err)">Delete this ride</button>
   </div>
   <div id="uploadStatus" class="note" style="text-align:center"></div>
 </section>
@@ -164,6 +204,9 @@ function parseFtms(d) {                   // 0x2AD2
   if (has(6)) r.power = Math.max(0, s16(d, o));
   return r;
 }
+function parseHr(d) {                    // 0x2A37 Heart Rate Measurement
+  return { hr: d.getUint8(0) & 0x01 ? u16(d, 1) : d.getUint8(1) };
+}
 class RevRate {                           // cumulative counters -> rpm
   constructor(unitsPerSec, mask = 0xFFFF) { this.u = unitsPerSec; this.mask = mask; this.rpm = 0; this.lastChange = 0; }
   update(revs, time, now = Date.now()) {
@@ -191,18 +234,28 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
   del(k) { try { localStorage.removeItem(k); } catch {} },
 };
-const live = { power: 0, cadence: 0, speed: 0, hasCadence: false, speedEstimated: true,
-               lastPower: 0, lastCad: 0 };
-const settings = { kg: store.get('kg', 75), wheel: 2.105 };
+const live = { power: 0, cadence: 0, speed: 0, hr: 0, hasCadence: false, hasHr: false, speedEstimated: true,
+               lastPower: 0, lastCad: 0, lastHr: 0 };
+// 3-second rolling averages of the values (one snapshot per second)
+const recent = [];
+function avg3(k) {
+  const vals = recent.map(r => r[k]).filter(v => k !== 'hr' || v > 0);   // don't drag heart rate down with gaps
+  return vals.length ? vals.reduce((a, v) => a + v, 0) / vals.length : 0;
+}
+function snapshot() {
+  recent.push({ power: live.power, cadence: live.cadence, speed: live.speed, hr: live.hr });
+  if (recent.length > 3) recent.shift();
+}
+const settings = { kg: 75, wheel: 2.105 };   // rider weight used for the speed estimate
 const devices = [];                       // {device, kind}
 const cpsCrank = new RevRate(1024), cpsWheel = new RevRate(2048, 0xFFFFFFFF), cscCrank = new RevRate(1024);
 
-const ride = { state: 'idle', startedAt: null, elapsed: 0, dist: 0, joules: 0, maxPower: 0, samples: [],
+const ride = { state: 'idle', startedAt: null, elapsed: 0, dist: 0, joules: 0, maxPower: 0, maxHr: 0, samples: [],
                activeMs: 0, resumedAt: 0, lastTick: 0, timer: null };
 
 // ============================================================ Bluetooth
-const SVC = { cps: 0x1818, csc: 0x1816, ftms: 0x1826 };
-const CHR = { cps: 0x2A63, csc: 0x2A5B, ftms: 0x2AD2 };
+const SVC = { cps: 0x1818, csc: 0x1816, ftms: 0x1826, hr: 0x180D };
+const CHR = { cps: 0x2A63, csc: 0x2A5B, ftms: 0x2AD2, hr: 0x2A37 };
 
 function showBanner(msg, err = false) {
   for (const b of [document.getElementById('banner'), document.getElementById('sensorMsg')]) {
@@ -210,42 +263,55 @@ function showBanner(msg, err = false) {
   }
 }
 
-async function connectSensor(kind) {
+async function connectSensor() {
   if (!navigator.bluetooth) {
     showBanner('This browser can\'t use Bluetooth. On iPhone, open this page in the free "Bluefy" app.', true);
     return;
   }
   try {
-    const filters = kind === 'trainer'
-      ? [{ services: [SVC.cps] }, { services: [SVC.ftms] }]
-      : [{ services: [SVC.csc] }, { services: [SVC.cps] }];
     showBanner('Looking for Bluetooth devices…');
-    const device = await navigator.bluetooth.requestDevice({
-      filters, optionalServices: [SVC.cps, SVC.csc, SVC.ftms] });
+    // List every nearby device; the app works out what each one sends after connecting
+    const device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: Object.values(SVC) });
     await attach(device);
   } catch (e) {
-    showBanner(e.name === 'NotFoundError' ? 'No device picked. Pedal to wake the trainer, then try again.'
+    showBanner(e.name === 'NotFoundError' ? 'No device picked. Pedal to wake the trainer (or check the Fitbit is sharing), then try again.'
                                           : 'Bluetooth: ' + e.name + ': ' + e.message, true);
   }
 }
 
+const NAMES = { cps: 'power', csc: 'cadence', ftms: 'trainer', hr: 'heart rate' };
 async function attach(device) {
+  const name = device.name || 'Device';
+  showBanner(`Connecting to ${name}…`);
   const server = await device.gatt.connect();
-  let found = false;
+  const kinds = [];
   for (const [key, svc] of Object.entries(SVC)) {
-    let service;
+    let service, ch;
     try { service = await server.getPrimaryService(svc); } catch { continue; }
-    let ch;
     try { ch = await service.getCharacteristic(CHR[key]); } catch { continue; }
-    ch.addEventListener('characteristicvaluechanged', e => onData(key, e.target.value));
-    await ch.startNotifications();
-    found = true;
+    try { await ch.startNotifications(); } catch (e) {
+      if (key === 'hr') showBanner(`${name} has heart rate but wouldn't start sending it (${e.message}). Try again.`, true);
+      continue;
+    }
+    ch.addEventListener('characteristicvaluechanged', e => { entry.last[key] = Date.now(); onData(key, e.target.value); });
+    kinds.push(key);
   }
-  if (!found) { device.gatt.disconnect(); throw new Error('No power, cadence or FTMS data on this device'); }
-  if (!devices.find(d => d.device === device)) devices.push({ device });
-  device.addEventListener('gattserverdisconnected', () => onDisconnect(device));
-  showBanner((device.name || 'Trainer') + ' connected ✓');
+  if (!kinds.length) {
+    device.gatt.disconnect();
+    throw new Error(`${name} doesn't send power, cadence or heart rate. (Fitbit Air: turn on Share heart rate → "Always visible" in Google Health, then try again.)`);
+  }
+  let entry = devices.find(d => d.device === device);
+  if (!entry) {
+    entry = { device, kinds, last: {} };
+    devices.push(entry);
+    device.addEventListener('gattserverdisconnected', () => onDisconnect(device));
+  } else entry.kinds = kinds;
+  showBanner(`${name} connected ✓ (${kinds.map(k => NAMES[k]).join(', ')})`);
   renderDevices();
+  if (kinds.includes('hr')) setTimeout(() => {
+    if (!entry.last.hr && device.gatt.connected)
+      showBanner(`${name} is connected but hasn't sent a heart rate yet. Make sure the band is snug on your wrist, and "Always visible" is on in Google Health.`, true);
+  }, 10000);
 }
 
 async function onDisconnect(device) {
@@ -267,6 +333,9 @@ function onData(kind, dv) {
     if (r.wheelRevs !== undefined) {
       live.speed = cpsWheel.update(r.wheelRevs, r.wheelTime) * settings.wheel * 60 / 1000; live.speedEstimated = false;
     } else estimateSpeed();
+  } else if (kind === 'hr') {
+    const r = parseHr(dv);
+    live.hr = r.hr; live.hasHr = true; live.lastHr = now;
   } else if (kind === 'csc') {
     const r = parseCsc(dv);
     if (r.crankRevs !== undefined) { live.cadence = cscCrank.update(r.crankRevs, r.crankTime); live.hasCadence = true; live.lastCad = now; }
@@ -285,7 +354,9 @@ setInterval(() => {
   const now = Date.now();
   if (now - live.lastPower > 3000 && live.power) { live.power = 0; if (live.speedEstimated) live.speed = 0; }
   if (now - live.lastCad > 3000 && live.cadence) live.cadence = 0;
-  render();
+  if (now - live.lastHr > 15000 && live.hr) live.hr = 0;   // wrist bands send less often
+  snapshot();
+  if ($('sheetSensors').classList.contains('open')) renderDevices(); else render();
 }, 1000);
 
 // ============================================================ Recording
@@ -301,8 +372,9 @@ document.addEventListener('visibilitychange', () => {
 });
 
 function startRide() {
+  if (!rider().kg) { renderRiders(); openSheet('sheetRiders'); return showBanner(`Enter ${rider().name}'s weight first.`, true); }
   Object.assign(ride, { state: 'riding', startedAt: new Date(), elapsed: 0, dist: 0, joules: 0,
-    maxPower: 0, samples: [], activeMs: 0, activeSec: 0 });
+    maxPower: 0, maxHr: 0, samples: [], activeMs: 0, activeSec: 0 });
   resumeRide();
 }
 function resumeRide() {
@@ -314,7 +386,7 @@ function pauseRide() {
   tick(); clearInterval(ride.timer);
   ride.activeMs += Date.now() - ride.resumedAt; ride.state = 'paused'; render();
 }
-function finishRide() { ride.state = 'finished'; keepAwake(false); openSummary(); render(); }
+function finishRide() { ride.state = 'finished'; keepAwake(false); savedRideId = saveRide(); openSummary(); render(); }
 function tick() {
   if (ride.state !== 'riding') return;
   const now = Date.now(), dt = Math.min((now - ride.lastTick) / 1000, 5); // cap gaps
@@ -324,12 +396,14 @@ function tick() {
   ride.dist += live.speed / 3.6 * dt;
   ride.joules += live.power * dt;
   ride.maxPower = Math.max(ride.maxPower, live.power);
-  ride.samples.push({ t: new Date(now), p: live.power, c: live.cadence, s: live.speed, d: ride.dist });
+  ride.maxHr = Math.max(ride.maxHr, live.hr);
+  ride.samples.push({ t: new Date(now), p: live.power, c: live.cadence, s: live.speed, h: live.hr, d: ride.dist });
   render();
 }
 const avg = {
   power: () => ride.activeSec ? ride.joules / ride.activeSec : 0,
   speed: () => ride.activeSec ? (ride.dist / 1000) / (ride.activeSec / 3600) : 0,
+  hr: () => { const h = ride.samples.filter(s => s.h > 0); return h.length ? h.reduce((a, s) => a + s.h, 0) / h.length : 0; },
   cadence: () => { const c = ride.samples.filter(s => s.c > 0); return c.length ? c.reduce((a, s) => a + s.c, 0) / c.length : 0; },
 };
 
@@ -339,6 +413,7 @@ function buildTcx(name) {
   const kcal = Math.round(ride.joules / 1000);
   const pts = ride.samples.map(s =>
     `<Trackpoint><Time>${iso(s.t)}</Time><DistanceMeters>${s.d.toFixed(1)}</DistanceMeters>` +
+    (s.h > 0 ? `<HeartRateBpm><Value>${s.h}</Value></HeartRateBpm>` : '') +
     (s.c > 0 ? `<Cadence>${Math.min(254, Math.round(s.c))}</Cadence>` : '') +
     `<Extensions><ns3:TPX><ns3:Speed>${(s.s / 3.6).toFixed(2)}</ns3:Speed><ns3:Watts>${s.p}</ns3:Watts></ns3:TPX></Extensions></Trackpoint>`
   ).join('\n');
@@ -346,76 +421,13 @@ function buildTcx(name) {
 <TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2" xmlns:ns3="http://www.garmin.com/xmlschemas/ActivityExtension/v2">
 <Activities><Activity Sport="Biking"><Id>${iso(ride.startedAt)}</Id>
 <Lap StartTime="${iso(ride.startedAt)}"><TotalTimeSeconds>${ride.elapsed}</TotalTimeSeconds>
-<DistanceMeters>${ride.dist.toFixed(1)}</DistanceMeters><Calories>${kcal}</Calories>
+<DistanceMeters>${ride.dist.toFixed(1)}</DistanceMeters><Calories>${kcal}</Calories>${ride.maxHr ?
+`<AverageHeartRateBpm><Value>${Math.round(avg.hr())}</Value></AverageHeartRateBpm><MaximumHeartRateBpm><Value>${ride.maxHr}</Value></MaximumHeartRateBpm>` : ''}
 <Intensity>Active</Intensity><TriggerMethod>Manual</TriggerMethod>
 <Track>
 ${pts}
 </Track></Lap></Activity></Activities></TrainingCenterDatabase>`;
 }
-
-// ============================================================ Strava
-const redirectUri = location.origin + location.pathname;
-const strava = {
-  get tokens() { return store.get('strava', null); },
-  connect() {
-    const id = document.getElementById('inClientId').value.trim();
-    const secret = document.getElementById('inSecret').value.trim();
-    if (!id || !secret) return showBanner('Enter your Strava Client ID and Secret in Settings first.', true);
-    store.set('strava_app', { id, secret });
-    const url = 'https://www.strava.com/oauth/authorize?' + new URLSearchParams({
-      client_id: id, redirect_uri: redirectUri, response_type: 'code',
-      approval_prompt: 'auto', scope: 'activity:write,read' });
-    location.href = url;
-  },
-  async token(params) {
-    const app = store.get('strava_app', null);
-    if (!app) throw new Error('Strava app details missing');
-    const res = await fetch('https://www.strava.com/oauth/token', { method: 'POST',
-      body: new URLSearchParams({ client_id: app.id, client_secret: app.secret, ...params }) });
-    const j = await res.json();
-    if (!res.ok) throw new Error(j.message || 'Strava login failed');
-    const prev = this.tokens || {};
-    store.set('strava', { access: j.access_token, refresh: j.refresh_token, expires: j.expires_at,
-      name: j.athlete ? `${j.athlete.firstname} ${j.athlete.lastname}` : prev.name });
-  },
-  async access() {
-    const t = this.tokens;
-    if (!t) throw new Error('Connect Strava in Settings first');
-    if (Date.now() / 1000 > t.expires - 60) await this.token({ grant_type: 'refresh_token', refresh_token: t.refresh });
-    return this.tokens.access;
-  },
-  async upload(tcx, name) {
-    const token = await this.access();
-    const fd = new FormData();
-    fd.append('file', new Blob([tcx], { type: 'application/xml' }), `ride_${Date.now()}.tcx`);
-    fd.append('data_type', 'tcx'); fd.append('name', name); fd.append('trainer', '1');
-    const res = await fetch('https://www.strava.com/api/v3/uploads', { method: 'POST',
-      headers: { Authorization: 'Bearer ' + token }, body: fd });
-    const j = await res.json();
-    if (!res.ok) throw new Error(j.message || 'Upload failed');
-    for (let i = 0; i < 10; i++) {
-      await new Promise(r => setTimeout(r, 2000));
-      const s = await (await fetch(`https://www.strava.com/api/v3/uploads/${j.id}`,
-        { headers: { Authorization: 'Bearer ' + token } })).json();
-      if (s.error) throw new Error(s.error);
-      if (s.activity_id) return s.activity_id;
-    }
-    return null;
-  },
-};
-// Handle the redirect back from Strava's login page
-(async () => {
-  const q = new URLSearchParams(location.search);
-  if (q.get('code')) {
-    history.replaceState(null, '', redirectUri);
-    try { await strava.token({ grant_type: 'authorization_code', code: q.get('code') }); showBanner('Strava connected ✓'); }
-    catch (e) { showBanner('Strava: ' + e.message + ' (check the Client Secret)', true); }
-    renderSettings();
-  } else if (q.get('error')) {
-    history.replaceState(null, '', redirectUri);
-    showBanner('Strava login was cancelled.', true);
-  }
-})();
 
 // ============================================================ UI
 const $ = id => document.getElementById(id);
@@ -424,14 +436,18 @@ const fmt = s => { const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60)
 
 function render() {
   $('vTime').textContent = fmt(ride.elapsed);
-  $('vPower').textContent = Math.round(live.power);
+  $('vPower').textContent = Math.round(avg3('power'));
   $('sPower').textContent = ride.elapsed ? `avg ${Math.round(avg.power())} W` : '';
-  $('vCad').textContent = live.hasCadence ? Math.round(live.cadence) : '--';
+  $('vCad').textContent = live.hasCadence ? Math.round(avg3('cadence')) : '--';
   $('sCad').textContent = live.hasCadence ? (ride.elapsed ? `avg ${Math.round(avg.cadence())}` : '') : 'needs cadence sensor';
-  $('vSpeed').textContent = live.speed.toFixed(1);
+  $('vSpeed').textContent = avg3('speed').toFixed(1);
   $('sSpeed').textContent = live.speedEstimated ? 'estimated from watts' : `avg ${avg.speed().toFixed(1)}`;
   $('vDist').textContent = (ride.dist / 1000).toFixed(2);
-  $('sDist').textContent = `${Math.round(ride.joules / 1000)} kcal`;
+  $('sDist').textContent = ride.elapsed ? `avg ${avg.speed().toFixed(1)} km/h` : '';
+  $('vHr').textContent = live.hasHr ? Math.round(avg3('hr')) || '--' : '--';
+  $('sHr').textContent = live.hasHr ? (ride.maxHr ? `avg ${Math.round(avg.hr())} · max ${ride.maxHr}` : '') : 'connect HR monitor';
+  $('vKcal').textContent = Math.round(ride.joules / 1000);
+  $('sKcal').textContent = `${Math.round(ride.joules / 1000)} kJ of work`;
   $('btnSensors').classList.toggle('on', devices.some(d => d.device.gatt.connected));
   $('btnSensors').textContent = devices.some(d => d.device.gatt.connected) ? 'Connected' : 'Sensors';
   renderControls();
@@ -448,65 +464,66 @@ function renderControls() {
   else { add('Resume', resumeRide); add('Finish', finishRide, true); }
 }
 function renderDevices() {
-  $('devList').innerHTML = devices.map(({ device }) =>
-    `<div class="dev"><span class="dot" style="background:${device.gatt.connected ? 'var(--ok)' : 'var(--err)'}"></span>
-     <span class="name">${(device.name || 'Sensor').replace(/</g, '&lt;')}</span>
-     <span class="sub">${device.gatt.connected ? 'connected' : 'disconnected'}</span></div>`).join('');
+  $('devList').innerHTML = devices.map(({ device, kinds, last }) => {
+    const receiving = kinds.some(k => Date.now() - (last[k] || 0) < 15000);
+    const state = !device.gatt.connected ? 'disconnected' : receiving ? 'receiving data' : 'waiting for data…';
+    return `<div class="dev"><span class="dot" style="background:${device.gatt.connected ? (receiving ? 'var(--ok)' : '#f5b800') : 'var(--err)'}"></span>
+     <span class="name">${(device.name || 'Sensor').replace(/</g, '&lt;')}<br><span class="sub">${kinds.map(k => NAMES[k]).join(', ')}</span></span>
+     <span class="sub">${state}</span></div>`; }).join('');
   render();
-}
-function renderSettings() {
-  const t = strava.tokens, app = store.get('strava_app', {});
-  $('inKg').value = settings.kg;
-  $('inClientId').value = app.id || '';
-  $('inSecret').value = app.secret || '';
-  $('stravaStatus').textContent = t ? `Connected${t.name ? ' as ' + t.name : ''}` : 'Not connected';
-  $('cbDomain').textContent = location.hostname || 'your site domain';
 }
 function openSheet(id) { $(id).classList.add('open'); }
 function closeSheets() { document.querySelectorAll('.sheet').forEach(s => s.classList.remove('open')); }
 
 function openSummary() {
   const rows = [
+    ['Rider', `${rider().name} (${settings.kg} kg)`],
     ['Time', fmt(ride.elapsed)], ['Distance', `${(ride.dist / 1000).toFixed(2)} km`],
     ['Avg power', `${Math.round(avg.power())} W`], ['Max power', `${ride.maxPower} W`],
     ['Avg cadence', live.hasCadence ? `${Math.round(avg.cadence())} rpm` : '--'],
     ['Avg speed', `${avg.speed().toFixed(1)} km/h`],
+    ['Avg heart rate', ride.maxHr ? `${Math.round(avg.hr())} bpm` : '--'],
+    ['Max heart rate', ride.maxHr ? `${ride.maxHr} bpm` : '--'],
     ['Energy', `${Math.round(ride.joules / 1000)} kJ (~${Math.round(ride.joules / 1000)} kcal)`],
   ];
   $('summaryRows').innerHTML = rows.map(([k, v]) => `<div class="row"><span class="k">${k}</span><span class="v">${v}</span></div>`).join('');
-  $('uploadStatus').textContent = '';
-  $('btnUpload').disabled = !ride.samples.length;
+  $('uploadStatus').textContent = savedRideId ? `Saved to ${rider().name}'s stats ✓` : 'Ride too short to save (under 10 s).';
+  $('stravaLink').hidden = true;
+  $('btnSend').textContent = 'Send to Strava';
+  $('btnSend').disabled = !ride.samples.length;
   openSheet('sheetSummary');
 }
 
 $('btnSensors').onclick = () => { renderDevices(); openSheet('sheetSensors'); };
-$('btnSettings').onclick = () => { renderSettings(); openSheet('sheetSettings'); };
 document.querySelectorAll('[data-close]').forEach(b => b.onclick = closeSheets);
-$('btnAddTrainer').onclick = () => connectSensor('trainer');
-$('btnAddCadence').onclick = () => connectSensor('cadence');
-$('inKg').oninput = e => { const v = parseFloat(e.target.value); if (v >= 30 && v <= 200) { settings.kg = v; store.set('kg', v); } };
-$('btnStrava').onclick = () => strava.connect();
-$('btnStravaOff').onclick = () => { store.del('strava'); renderSettings(); };
-$('btnUpload').onclick = async () => {
-  const st = $('uploadStatus'); $('btnUpload').disabled = true; st.textContent = 'Uploading…';
-  try {
-    const id = await strava.upload(buildTcx(), $('inName').value || 'Indoor ride');
-    st.innerHTML = id ? `Uploaded ✓ <a href="https://www.strava.com/activities/${id}" target="_blank">View on Strava</a>`
-                      : 'Uploaded ✓ Strava is still processing it.';
-  } catch (e) {
-    st.textContent = `Upload failed: ${e.message}. Use "Save .tcx file" and upload it at strava.com/upload/select instead.`;
-    $('btnUpload').disabled = false;
-  }
-};
-$('btnDownload').onclick = async () => {
-  const name = `ride_${iso(ride.startedAt).slice(0, 10)}.tcx`;
+$('btnConnect').onclick = connectSensor;
+// Free path: save the ride file, then open Strava's upload page in a new tab
+$('btnSend').onclick = async () => {
+  const st = $('uploadStatus');
+  const safe = ($('inName').value || 'Indoor ride').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') || 'ride';
+  const name = `${safe}_${iso(ride.startedAt).slice(0, 10)}.tcx`;
   const file = new File([buildTcx()], name, { type: 'application/xml' });
-  try { if (navigator.canShare && navigator.canShare({ files: [file] })) return await navigator.share({ files: [file] }); } catch {}
-  const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = name; a.click();
+  let saved = false;
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); saved = true; }
+  } catch (e) { if (e.name === 'AbortError') { st.textContent = 'Cancelled. Tap Send to Strava again.'; return; } }
+  if (!saved) {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove(); saved = true;
+  }
+  $('btnSend').textContent = 'Save file again';
+  $('stravaLink').hidden = false;
+  st.innerHTML = `Saved <b>${name}</b>.<br>On Strava's page, tap <b>Choose file</b>, pick this file, then <b>Save &amp; View</b>.`;
+  const w = window.open('https://www.strava.com/upload/select', '_blank');  // may be blocked; Step 2 button is the backup
+  if (w) st.innerHTML += '<br>Strava opened in a new tab.';
+};
+$('btnDiscard').onclick = () => {
+  if (!confirm('Delete this ride? It will be removed from the stats.')) return;
+  if (savedRideId) deleteRide(current, savedRideId);
+  savedRideId = null; $('btnDone').onclick();
 };
 $('btnDone').onclick = () => {
-  if (ride.samples.length > 30 && !confirm('Discard this ride?')) return;
-  Object.assign(ride, { state: 'idle', activeSec: 0, elapsed: 0, dist: 0, joules: 0, maxPower: 0, samples: [] });
+  Object.assign(ride, { state: 'idle', activeSec: 0, elapsed: 0, dist: 0, joules: 0, maxPower: 0, maxHr: 0, samples: [] });
   closeSheets(); render();
 };
 window.addEventListener('beforeunload', e => { if (ride.state === 'riding' || ride.state === 'paused') e.preventDefault(); });
@@ -525,8 +542,142 @@ if (new URLSearchParams(location.search).has('demo')) {
     buf.setUint16(0, 0x20, true); buf.setInt16(2, w, true);
     buf.setUint16(4, crank & 0xFFFF, true); buf.setUint16(6, ct, true);
     onData('cps', buf);
+    onData('hr', new DataView(new Uint8Array([0, 135 + Math.round(10 * Math.sin(Date.now() / 9000))]).buffer));
   }, 1000);
 }
+// ============================================================ Riders & leaderboard
+const RIDER_IDS = ['noah', 'jake'];
+const riders = store.get('riders', null) || {
+  noah: { name: 'Noah', kg: null, rides: [] },
+  jake: { name: 'Jake', kg: null, rides: [] },
+};
+let current = store.get('currentRider', 'noah');
+const saveRiders = () => { store.set('riders', riders); store.set('currentRider', current); };
+const rider = () => riders[current];
+function applyRider() {
+  settings.kg = rider().kg || 75;
+  $('btnRider').innerHTML = `${rider().name}<small>${rider().kg ? rider().kg + ' kg' : 'set weight'} ▾</small>`;
+}
+
+function renderRiders() {
+  $('riderList').innerHTML = RIDER_IDS.map(id => { const r = riders[id]; return `
+    <div class="rider ${id === current ? 'sel' : ''}">
+      <h3>${r.name}<span class="sub">${r.rides.length} rides</span></h3>
+      <label class="field">Weight (kg)
+        <input type="number" inputmode="decimal" min="30" max="200" data-kg="${id}" value="${r.kg ?? ''}" placeholder="enter weight"></label>
+      <button class="big ${id === current ? '' : 'alt'}" data-pick="${id}" style="width:100%">
+        ${id === current ? '✓ Riding as ' + r.name : 'Ride as ' + r.name}</button>
+    </div>`; }).join('');
+  document.querySelectorAll('[data-kg]').forEach(inp => inp.oninput = () => {
+    const v = parseFloat(inp.value);
+    riders[inp.dataset.kg].kg = v >= 30 && v <= 200 ? v : null;
+    saveRiders(); applyRider();
+  });
+  document.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => {
+    if (ride.state === 'riding' || ride.state === 'paused') return showBanner('Finish the current ride before switching rider.', true);
+    current = b.dataset.pick; saveRiders(); applyRider(); renderRiders();
+  });
+}
+
+function bestAvg(powers, secs) {           // best average power over any `secs`-second window
+  if (powers.length < secs) return null;
+  let sum = 0, best = 0;
+  for (let i = 0; i < powers.length; i++) {
+    sum += powers[i]; if (i >= secs) sum -= powers[i - secs];
+    if (i >= secs - 1) best = Math.max(best, sum / secs);
+  }
+  return Math.round(best);
+}
+let savedRideId = null;
+function saveRide() {
+  if (!ride.samples.length || ride.elapsed < 10) return null;
+  const p = ride.samples.map(s => s.p);
+  const rec = { id: Date.now(), date: ride.startedAt.toISOString(), sec: ride.elapsed,
+    km: +(ride.dist / 1000).toFixed(2), avgW: Math.round(avg.power()), maxW: ride.maxPower,
+    avgHr: ride.maxHr ? Math.round(avg.hr()) : null, maxHr: ride.maxHr || null,
+    kcal: Math.round(ride.joules / 1000), cad: live.hasCadence ? Math.round(avg.cadence()) : null,
+    best1: bestAvg(p, 60), best5: bestAvg(p, 300), best20: bestAvg(p, 1200), kg: settings.kg };
+  rider().rides.unshift(rec); saveRiders(); applyRider();
+  return rec.id;
+}
+function deleteRide(rid, id) { riders[rid].rides = riders[rid].rides.filter(r => r.id !== id); saveRiders(); }
+
+let period = 'week';
+function inPeriod(r) {
+  const d = new Date(r.date), now = new Date();
+  if (period === 'all') return true;
+  if (period === 'month') return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+  const monday = new Date(now); monday.setHours(0, 0, 0, 0); monday.setDate(monday.getDate() - (monday.getDay() + 6) % 7);
+  return d >= monday;
+}
+const hms = s => { if (s < 60) return `${s}s`; const h = Math.floor(s / 3600), m = Math.round(s % 3600 / 60); return h ? `${h}h ${m}m` : `${m}m`; };
+function stats(id) {
+  const rs = riders[id].rides.filter(inPeriod), max = k => rs.reduce((a, r) => r[k] != null ? Math.max(a ?? 0, r[k]) : a, null);
+  const sum = k => rs.reduce((a, r) => a + (r[k] || 0), 0);
+  const best20 = max('best20'), kg = riders[id].kg;
+  const wkg = rs.reduce((a, r) => r.best20 && r.kg ? Math.max(a ?? 0, r.best20 / r.kg) : a, null);
+  return {
+    rides: rs.length, km: sum('km'), sec: sum('sec'), kcal: sum('kcal'),
+    longest: max('km'), avgW: max('avgW'), maxW: max('maxW'), best5: max('best5'), best20, wkg,
+  };
+}
+function renderBoard() {
+  document.querySelectorAll('#boardTabs button').forEach(b => b.classList.toggle('on', b.dataset.p === period));
+  const S = Object.fromEntries(RIDER_IDS.map(id => [id, stats(id)]));
+  const metrics = [
+    ['Rides', 'rides', v => v],
+    ['Distance', 'km', v => v.toFixed(1) + ' km'],
+    ['Time', 'sec', v => hms(v)],
+    ['Calories', 'kcal', v => v.toLocaleString()],
+    ['Longest ride', 'longest', v => v.toFixed(1) + ' km'],
+    ['Best avg power', 'avgW', v => v + ' W'],
+    ['Best 5-min power', 'best5', v => v + ' W'],
+    ['Best 20-min power', 'best20', v => v + ' W'],
+    ['Best W/kg (20 min)', 'wkg', v => v.toFixed(2)],
+    ['Max power', 'maxW', v => v + ' W'],
+  ];
+  const wins = { noah: 0, jake: 0 };
+  const rows = metrics.map(([label, k, f]) => {
+    const a = S.noah[k], b = S.jake[k];
+    const lead = (a || 0) > (b || 0) ? 'noah' : (b || 0) > (a || 0) ? 'jake' : null;
+    if (lead) wins[lead]++;
+    const cell = (id, v) => `<td class="${lead === id ? 'lead' : ''}">${v ? f(v) : '–'}${lead === id ? ' 👑' : ''}</td>`;
+    return `<tr><td>${label}</td>${cell('noah', a)}${cell('jake', b)}</tr>`;
+  }).join('');
+  $('boardTable').innerHTML = `<tr><th></th><th>NOAH</th><th>JAKE</th></tr>${rows}`;
+  $('boardScore').innerHTML = RIDER_IDS.map(id => `<div class="card"><div class="label">${riders[id].name.toUpperCase()}</div>
+    <div class="val" style="${wins[id] > wins[id === 'noah' ? 'jake' : 'noah'] ? 'color:var(--accent)' : ''}">${wins[id]}</div>
+    <div class="sub">categories won</div></div>`).join('');
+  const all = RIDER_IDS.flatMap(id => riders[id].rides.map(r => ({ ...r, rid: id }))).sort((a, b) => b.id - a.id).slice(0, 20);
+  $('boardHist').innerHTML = all.length ? all.map(r => `<div class="hist"><span class="who">${riders[r.rid].name}</span>
+    <span class="what">${new Date(r.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · ${hms(r.sec)} ·
+    ${r.km.toFixed(1)} km · ${r.avgW} W${r.avgHr ? ' · ' + r.avgHr + ' bpm' : ''}</span>
+    <button data-del="${r.rid}:${r.id}" aria-label="Delete ride">✕</button></div>`).join('')
+    : '<p class="note">No rides yet. Finish a ride and it lands here.</p>';
+  document.querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
+    const [rid, id] = b.dataset.del.split(':');
+    if (confirm('Delete this ride from the stats?')) { deleteRide(rid, +id); renderBoard(); }
+  });
+}
+document.querySelectorAll('#boardTabs button').forEach(b => b.onclick = () => { period = b.dataset.p; renderBoard(); });
+$('btnRider').onclick = () => { renderRiders(); openSheet('sheetRiders'); };
+$('btnBoard').onclick = () => { renderBoard(); openSheet('sheetBoard'); };
+$('btnExport').onclick = () => {
+  const file = new File([JSON.stringify(riders, null, 1)], `trainer-stats-${new Date().toISOString().slice(0, 10)}.json`, { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name;
+  document.body.appendChild(a); a.click(); a.remove();
+};
+$('btnImport').onclick = () => $('inImport').click();
+$('inImport').onchange = async e => {
+  try {
+    const data = JSON.parse(await e.target.files[0].text());
+    if (!RIDER_IDS.every(id => data[id] && Array.isArray(data[id].rides))) throw new Error('not a backup file');
+    if (!confirm('Replace the current stats with this backup?')) return;
+    RIDER_IDS.forEach(id => riders[id] = data[id]); saveRiders(); applyRider(); renderBoard();
+  } catch (err) { alert('Could not restore: ' + err.message); }
+  e.target.value = '';
+};
+applyRider();
 render();
 </script>
 </body>
