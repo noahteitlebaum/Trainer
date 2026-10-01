@@ -6,7 +6,6 @@ The whole app is one file, `index.html`, hosted free on GitHub Pages.
 
 ## What you need
 
-- An iPhone with **Bluefy** (from the App Store), a free browser that can use Bluetooth. Safari can't.
 - A Magene T100 trainer
 - Optional: a heart rate monitor, such as a Fitbit Air or any Bluetooth chest strap
 - Optional: a Bluetooth cadence sensor, because the T100 doesn't measure cadence
@@ -17,7 +16,7 @@ The whole app is one file, `index.html`, hosted free on GitHub Pages.
    - In this GitHub repository, open **Settings → Pages**.
    - Set **Source** to **Deploy from a branch**, choose **main** and **/(root)**, then click **Save**.
    - After a minute the app is live at `https://<username>.github.io/<repo>/`.
-2. **Open it:** Open that link in **Bluefy** on the iPhone.
+2. **Open it:** Open that link in on any chosen browser.
 3. **Fitbit Air only:** In the Google Health app, tap **Fitbit Air**, go to **Share heart rate** and turn on **Always visible**.
 4. **Riders:** Tap the name at the top left and enter both Noah's and Jake's weight.
 
@@ -69,7 +68,6 @@ Power, cadence, speed and heart rate on screen are 3-second averages. Rides are 
 
 | Problem | Fix |
 |---|---|
-| "This browser can't use Bluetooth" | Open the link in Bluefy, and allow Bluetooth under iPhone **Settings → Bluefy**. |
 | Trainer not in the list | Pedal to wake it, and close Zwift and the Magene app. |
 | Fitbit connects but shows no heart rate | Turn on **Always visible** in Google Health, and wear the band snugly. |
 | Want to try it without the trainer | Add `?demo` to the end of the link to see fake ride data. |
