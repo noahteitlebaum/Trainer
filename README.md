@@ -1,8 +1,8 @@
 # Trainer Tracker
 
-A web app for indoor rides on a **Magene T100** trainer. It shows live power, cadence, speed, distance, heart rate and calories on an iPhone. Rides are saved to **Noah** or **Jake**, compared on a leaderboard, and can be sent to Strava.
+A web app for indoor rides on a **Magene T100** trainer. It shows live power, cadence, speed, distance, heart rate and calories on an iPhone. Choose **Noah** or **Jake** before riding (their weight is used for the speed estimate), and send finished rides to Strava.
 
-The app is one file, `index.html`, hosted free on GitHub Pages. Stats are saved in `stats.json` next to it.
+The app is one file, `index.html`, hosted free on GitHub Pages.
 
 ## What you need
 
@@ -29,7 +29,7 @@ To update the app, upload a new `index.html` to the repository and reload the pa
 2. Start pedalling to wake the trainer.
 3. Tap **Sensors → Connect device** and pick the T100. Repeat for the heart rate monitor or cadence sensor.
 4. Tap the name at the top left to choose who's riding.
-5. Tap **Start ride**, then **Pause** and **Finish** when you're done. The ride saves to that rider's stats.
+5. Tap **Start ride**, then **Pause** and **Finish** when you're done.
 
 ## Sending a ride to Strava
 
@@ -39,32 +39,6 @@ On the ride summary, tap **Send to Strava**:
 2. On Strava's upload page, tap **Choose file**, pick the ride, then **Save & View**. If the page didn't open by itself, tap **Step 2**.
 
 Automatic uploads need a paid Strava subscription for API access, so the app uses Strava's free manual upload instead.
-
-## Stats and leaderboard
-
-Tap **🏆 Stats** to see Noah vs Jake for this week, this month or all time. The categories are:
-
-- rides, distance, time, calories and longest ride
-- best average power, best 5-minute and 20-minute power
-- best W/kg: watts per kg of body weight, over 20 minutes
-- max power
-
-A 👑 marks the leader in each category, and the ride list lets you delete a ride.
-
-**Shared stats:** All rides and weights are saved in `stats.json` in this repository, so every phone that opens the app sees the same leaderboard. A phone needs a GitHub token (below) to save rides. Without one it can still view the stats, and its rides wait on that phone until a token is added. **Export backup** and **Restore backup** at the bottom of the Stats screen save a copy to a file.
-
-### Setting up saving (once per phone)
-
-1. On GitHub, open **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**.
-2. Fill in the form:
-   - **Name:** anything, e.g. `trainer app`
-   - **Expiration:** the longest option
-   - **Repository access:** **Only select repositories**, then pick this repository.
-   - **Permissions:** under **Repository permissions**, set **Contents** to **Read and write**.
-3. Click **Generate token** and copy it. It starts with `github_pat_`.
-4. In the app, tap **🏆 Stats**, scroll down, paste the token and tap **Save token**.
-
-Never put the token in `index.html` or anywhere else in the repository. Each saved ride adds a small commit called "Update stats".
 
 ## How the numbers work
 

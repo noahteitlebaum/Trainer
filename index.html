@@ -89,7 +89,6 @@
 
 <header>
   <button class="rider-btn" id="btnRider">Noah<small>▾</small></button>
-  <button class="icon-btn" id="btnBoard">🏆 Stats</button>
   <button class="icon-btn" id="btnSensors">Sensors</button>
 </header>
 
@@ -134,33 +133,7 @@
 <section class="sheet" id="sheetRiders">
   <header><h2>Who's riding?</h2><button class="icon-btn" data-close>Done</button></header>
   <div id="riderList"></div>
-  <p class="note">Weight is used to estimate speed and distance, and for W/kg on the leaderboard.</p>
-</section>
-
-<!-- Leaderboard sheet -->
-<section class="sheet" id="sheetBoard">
-  <header><h2>Leaderboard</h2><button class="icon-btn" data-close>Done</button></header>
-  <div class="tabs" id="boardTabs">
-    <button data-p="week">This week</button><button data-p="month">This month</button><button data-p="all">All time</button>
-  </div>
-  <div class="score" id="boardScore"></div>
-  <table class="board" id="boardTable"></table>
-  <h3 class="sec">Recent rides</h3>
-  <div id="boardHist"></div>
-  <p class="note" id="syncStatus" style="text-align:center"></p>
-  <div id="ghTokenRow" hidden>
-    <h3 class="sec">GitHub token</h3>
-    <p class="note" style="margin-top:4px" id="ghTokenState"></p>
-    <label class="field">Paste token <input id="inToken" type="password" autocomplete="off" placeholder="github_pat_…"></label>
-    <div class="stack"><button class="big alt" id="btnToken">Save token</button></div>
-  </div>
-  <h3 class="sec">Backup</h3>
-  <p class="note" style="margin-top:4px">Export a copy of all stats to a file. Restoring adds any rides from the file that are missing.</p>
-  <div class="stack">
-    <button class="big alt" id="btnExport">Export backup</button>
-    <button class="big alt" id="btnImport">Restore backup</button>
-    <input type="file" id="inImport" accept=".json,application/json" hidden>
-  </div>
+  <p class="note">Weight is used to estimate speed and distance.</p>
 </section>
 
 <!-- Summary sheet -->
@@ -172,7 +145,6 @@
     <button class="big" id="btnSend">Send to Strava</button>
     <a class="big linkbtn" id="stravaLink" href="https://www.strava.com/upload/select" target="_blank" rel="noopener" hidden>Step 2: Open Strava upload page ↗</a>
     <button class="big alt" id="btnDone">Done</button>
-    <button class="big alt" id="btnDiscard" style="border-color:var(--err);color:var(--err)">Delete this ride</button>
   </div>
   <div id="uploadStatus" class="note" style="text-align:center"></div>
 </section>
@@ -380,6 +352,7 @@ document.addEventListener('visibilitychange', () => {
 
 function startRide() {
   if (!rider().kg) { renderRiders(); openSheet('sheetRiders'); return showBanner(`Enter ${rider().name}'s weight first.`, true); }
+  showBanner('');
   Object.assign(ride, { state: 'riding', startedAt: new Date(), elapsed: 0, dist: 0, joules: 0,
     maxPower: 0, maxHr: 0, samples: [], activeMs: 0, activeSec: 0 });
   resumeRide();
@@ -393,7 +366,7 @@ function pauseRide() {
   tick(); clearInterval(ride.timer);
   ride.activeMs += Date.now() - ride.resumedAt; ride.state = 'paused'; render();
 }
-function finishRide() { ride.state = 'finished'; keepAwake(false); savedRideId = saveRide(); openSummary(); render(); }
+function finishRide() { ride.state = 'finished'; keepAwake(false); openSummary(); render(); }
 function tick() {
   if (ride.state !== 'riding') return;
   const now = Date.now(), dt = Math.min((now - ride.lastTick) / 1000, 5); // cap gaps
@@ -494,7 +467,7 @@ function openSummary() {
     ['Energy', `${Math.round(ride.joules / 1000)} kJ (~${Math.round(ride.joules / 1000)} kcal)`],
   ];
   $('summaryRows').innerHTML = rows.map(([k, v]) => `<div class="row"><span class="k">${k}</span><span class="v">${v}</span></div>`).join('');
-  $('uploadStatus').textContent = savedRideId ? `Saved to ${rider().name}'s stats ✓` : 'Ride too short to save (under 10 s).';
+  $('uploadStatus').textContent = '';
   $('stravaLink').hidden = true;
   $('btnSend').textContent = 'Send to Strava';
   $('btnSend').disabled = !ride.samples.length;
@@ -524,11 +497,6 @@ $('btnSend').onclick = async () => {
   const w = window.open('https://www.strava.com/upload/select', '_blank');  // may be blocked; Step 2 button is the backup
   if (w) st.innerHTML += '<br>Strava opened in a new tab.';
 };
-$('btnDiscard').onclick = () => {
-  if (!confirm('Delete this ride? It will be removed from the stats.')) return;
-  if (savedRideId) deleteRide(current, savedRideId);
-  savedRideId = null; $('btnDone').onclick();
-};
 $('btnDone').onclick = () => {
   Object.assign(ride, { state: 'idle', activeSec: 0, elapsed: 0, dist: 0, joules: 0, maxPower: 0, maxHr: 0, samples: [] });
   closeSheets(); render();
@@ -553,126 +521,11 @@ if (new URLSearchParams(location.search).has('demo')) {
   }, 1000);
 }
 
-// ============================================================ Shared stats in GitHub (stats.json in this repo)
-// The repo is worked out from the page address: https://<owner>.github.io/<repo>/
-const GH = (() => {
-  const owner = location.hostname.endsWith('.github.io') ? location.hostname.split('.')[0] : '';
-  const first = location.pathname.split('/')[1];
-  const repo = first && !first.includes('.') ? first : `${owner}.github.io`;
-  return { owner, repo, path: 'stats.json' };
-})();
-const cloud = {
-  get on() { return !!GH.owner; },
-  get token() { return store.get('ghToken', ''); },
-  status: 'off', lastSync: 0, busy: false, again: false, error: '',
-  api: () => `https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${GH.path}`,
-  headers(auth) {
-    const h = { Accept: 'application/vnd.github+json' };
-    if (auth && this.token) h.Authorization = `Bearer ${this.token}`;
-    return h;
-  },
-};
-const b64encode = str => btoa(unescape(encodeURIComponent(str)));
-const b64decode = b64 => decodeURIComponent(escape(atob(b64.replace(/\s/g, ''))));
-let pendingDeletes = store.get('pendingDeletes', []);
-let weightsDirty = store.get('weightsDirty', false);
-let kgTimer = null;
-function pushWeight() {
-  weightsDirty = true; store.set('weightsDirty', true);
-  clearTimeout(kgTimer); kgTimer = setTimeout(syncNow, 1500);
-}
-async function readStats() {
-  const res = await fetch(`${cloud.api()}?t=${Date.now()}`, { headers: cloud.headers(true), cache: 'no-store' });
-  if (res.status === 404) return { data: { weights: {}, rides: {} }, sha: null };
-  if (res.status === 401) throw new Error('GitHub token is wrong or expired');
-  if (!res.ok) throw new Error(`GitHub ${res.status}`);
-  const j = await res.json();
-  return { data: JSON.parse(b64decode(j.content) || '{}'), sha: j.sha };
-}
-async function writeStats(data, sha) {
-  const res = await fetch(cloud.api(), { method: 'PUT', headers: cloud.headers(true), body: JSON.stringify({
-    message: `Update stats (${new Date().toISOString().slice(0, 16).replace('T', ' ')})`,
-    content: b64encode(JSON.stringify(data, null, 1) + '\n'), ...(sha ? { sha } : {}) }) });
-  if (res.status === 409 || res.status === 422) return false;   // someone else saved first: re-read and retry
-  if (res.status === 401 || res.status === 403 || res.status === 404) throw new Error('GitHub token can\'t save to this repo');
-  if (!res.ok) throw new Error(`GitHub ${res.status}`);
-  return true;
-}
-async function syncNow() {
-  if (!cloud.on) return;
-  if (cloud.busy) { cloud.again = true; return; }
-  cloud.busy = true; renderSyncStatus();
-  try {
-    for (let attempt = 0; attempt < 4; attempt++) {
-      const { data, sha } = await readStats();
-      data.rides = data.rides || {}; data.weights = data.weights || {};
-      const original = JSON.parse(JSON.stringify(data));   // what's online before this phone's changes
-      const del = new Set(pendingDeletes.map(d => `${d.rid}:${d.id}`));
-      let changed = false;
-      for (const id of RIDER_IDS) {
-        let online = (data.rides[id] || []).filter(r => !del.has(`${id}:${r.id}`));
-        if (online.length !== (data.rides[id] || []).length) changed = true;
-        const have = new Set(online.map(r => r.id));
-        for (const r of riders[id].rides.filter(r => !r.synced && !have.has(r.id))) {
-          const { synced, ...rec } = r; online.push(rec); changed = true;
-        }
-        data.rides[id] = online.sort((a, b) => b.id - a.id);
-        if (weightsDirty && riders[id].kg != null && data.weights[id] !== riders[id].kg) { data.weights[id] = riders[id].kg; changed = true; }
-      }
-      if (changed) {
-        if (!cloud.token) {                   // can read, can't write
-          adopt(original); cloud.status = 'notoken'; break;
-        }
-        if (!await writeStats(data, sha)) continue;
-      }
-      pendingDeletes = []; store.set('pendingDeletes', []);
-      weightsDirty = false; store.set('weightsDirty', false);
-      adopt(data);
-      cloud.status = 'ok'; cloud.lastSync = Date.now(); cloud.error = '';
-      break;
-    }
-  } catch (e) {
-    cloud.status = 'offline'; cloud.error = e.message; console.warn('sync failed', e);
-  }
-  cloud.busy = false;
-  renderSyncStatus();
-  if ($('sheetBoard').classList.contains('open')) renderBoard();
-  if ($('sheetRiders').classList.contains('open') && !document.activeElement?.dataset?.kg) renderRiders();
-  if (cloud.again) { cloud.again = false; syncNow(); }
-}
-// Use the online file as the source of truth, keeping anything this phone hasn't uploaded yet
-function adopt(data) {
-  const del = new Set(pendingDeletes.map(d => `${d.rid}:${d.id}`));
-  for (const id of RIDER_IDS) {
-    const online = (data.rides[id] || []).filter(r => !del.has(`${id}:${r.id}`));
-    const ids = new Set(online.map(r => r.id));
-    const localOnly = riders[id].rides.filter(r => !r.synced && !ids.has(r.id));
-    riders[id].rides = [...online.map(r => ({ ...r, synced: true })), ...localOnly].sort((a, b) => b.id - a.id);
-    if (data.weights[id] != null && !weightsDirty) riders[id].kg = data.weights[id];
-  }
-  saveRiders(); applyRider();
-}
-function renderSyncStatus() {
-  const el = $('syncStatus'); if (!el) return;
-  const unsynced = RIDER_IDS.reduce((n, id) => n + riders[id].rides.filter(r => !r.synced).length, 0) + pendingDeletes.length;
-  const waiting = `${unsynced} change${unsynced === 1 ? '' : 's'} waiting to save`;
-  el.textContent = !cloud.on ? 'Open the app from its github.io link to share stats. Saved on this phone for now.'
-    : cloud.busy ? 'Syncing…'
-    : cloud.status === 'ok' ? `✓ Synced with GitHub at ${new Date(cloud.lastSync).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
-    : cloud.status === 'notoken' ? `Showing shared stats. ${waiting}. Add a GitHub token below to save from this phone.`
-    : cloud.status === 'offline' ? `Couldn't sync (${cloud.error}). ${waiting}.`
-    : 'Connecting…';
-  $('ghTokenRow').hidden = !cloud.on;
-  $('ghTokenState').textContent = cloud.token ? 'Token saved on this phone ✓' : 'No token on this phone yet';
-}
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncNow(); });
-window.addEventListener('online', syncNow);
-
-// ============================================================ Riders & leaderboard
+// ============================================================ Riders (weight is used for the speed estimate)
 const RIDER_IDS = ['noah', 'jake'];
 const riders = store.get('riders', null) || {
-  noah: { name: 'Noah', kg: null, rides: [] },
-  jake: { name: 'Jake', kg: null, rides: [] },
+  noah: { name: 'Noah', kg: null },
+  jake: { name: 'Jake', kg: null },
 };
 let current = store.get('currentRider', 'noah');
 const saveRiders = () => { store.set('riders', riders); store.set('currentRider', current); };
@@ -685,7 +538,7 @@ function applyRider() {
 function renderRiders() {
   $('riderList').innerHTML = RIDER_IDS.map(id => { const r = riders[id]; return `
     <div class="rider ${id === current ? 'sel' : ''}">
-      <h3>${r.name}<span class="sub">${r.rides.length} rides</span></h3>
+      <h3>${r.name}</h3>
       <label class="field">Weight (kg)
         <input type="number" inputmode="decimal" min="30" max="200" data-kg="${id}" value="${r.kg ?? ''}" placeholder="enter weight"></label>
       <button class="big ${id === current ? '' : 'alt'}" data-pick="${id}" style="width:100%">
@@ -695,7 +548,6 @@ function renderRiders() {
     const v = parseFloat(inp.value);
     riders[inp.dataset.kg].kg = v >= 30 && v <= 200 ? v : null;
     saveRiders(); applyRider();
-    if (riders[inp.dataset.kg].kg) pushWeight();
   });
   document.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => {
     if (ride.state === 'riding' || ride.state === 'paused') return showBanner('Finish the current ride before switching rider.', true);
@@ -703,121 +555,8 @@ function renderRiders() {
   });
 }
 
-function bestAvg(powers, secs) {           // best average power over any `secs`-second window
-  if (powers.length < secs) return null;
-  let sum = 0, best = 0;
-  for (let i = 0; i < powers.length; i++) {
-    sum += powers[i]; if (i >= secs) sum -= powers[i - secs];
-    if (i >= secs - 1) best = Math.max(best, sum / secs);
-  }
-  return Math.round(best);
-}
-let savedRideId = null;
-function saveRide() {
-  if (!ride.samples.length || ride.elapsed < 10) return null;
-  const p = ride.samples.map(s => s.p);
-  const rec = { id: Date.now(), date: ride.startedAt.toISOString(), sec: ride.elapsed,
-    km: +(ride.dist / 1000).toFixed(2), avgW: Math.round(avg.power()), maxW: ride.maxPower,
-    avgHr: ride.maxHr ? Math.round(avg.hr()) : null, maxHr: ride.maxHr || null,
-    kcal: Math.round(ride.joules / 1000), cad: live.hasCadence ? Math.round(avg.cadence()) : null,
-    best1: bestAvg(p, 60), best5: bestAvg(p, 300), best20: bestAvg(p, 1200), kg: settings.kg };
-  rider().rides.unshift(rec); saveRiders(); applyRider(); syncNow();
-  return rec.id;
-}
-function deleteRide(rid, id) {
-  const r = riders[rid].rides.find(r => r.id === id);
-  riders[rid].rides = riders[rid].rides.filter(r => r.id !== id); saveRiders();
-  if (r && r.synced) { pendingDeletes.push({ rid, id }); store.set('pendingDeletes', pendingDeletes); }
-  syncNow();
-}
-
-let period = 'week';
-function inPeriod(r) {
-  const d = new Date(r.date), now = new Date();
-  if (period === 'all') return true;
-  if (period === 'month') return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-  const monday = new Date(now); monday.setHours(0, 0, 0, 0); monday.setDate(monday.getDate() - (monday.getDay() + 6) % 7);
-  return d >= monday;
-}
-const hms = s => { if (s < 60) return `${s}s`; const h = Math.floor(s / 3600), m = Math.round(s % 3600 / 60); return h ? `${h}h ${m}m` : `${m}m`; };
-function stats(id) {
-  const rs = riders[id].rides.filter(inPeriod), max = k => rs.reduce((a, r) => r[k] != null ? Math.max(a ?? 0, r[k]) : a, null);
-  const sum = k => rs.reduce((a, r) => a + (r[k] || 0), 0);
-  const best20 = max('best20'), kg = riders[id].kg;
-  const wkg = rs.reduce((a, r) => r.best20 && r.kg ? Math.max(a ?? 0, r.best20 / r.kg) : a, null);
-  return {
-    rides: rs.length, km: sum('km'), sec: sum('sec'), kcal: sum('kcal'),
-    longest: max('km'), avgW: max('avgW'), maxW: max('maxW'), best5: max('best5'), best20, wkg,
-  };
-}
-function renderBoard() {
-  document.querySelectorAll('#boardTabs button').forEach(b => b.classList.toggle('on', b.dataset.p === period));
-  const S = Object.fromEntries(RIDER_IDS.map(id => [id, stats(id)]));
-  const metrics = [
-    ['Rides', 'rides', v => v],
-    ['Distance', 'km', v => v.toFixed(1) + ' km'],
-    ['Time', 'sec', v => hms(v)],
-    ['Calories', 'kcal', v => v.toLocaleString()],
-    ['Longest ride', 'longest', v => v.toFixed(1) + ' km'],
-    ['Best avg power', 'avgW', v => v + ' W'],
-    ['Best 5-min power', 'best5', v => v + ' W'],
-    ['Best 20-min power', 'best20', v => v + ' W'],
-    ['Best W/kg (20 min)', 'wkg', v => v.toFixed(2)],
-    ['Max power', 'maxW', v => v + ' W'],
-  ];
-  const wins = { noah: 0, jake: 0 };
-  const rows = metrics.map(([label, k, f]) => {
-    const a = S.noah[k], b = S.jake[k];
-    const lead = (a || 0) > (b || 0) ? 'noah' : (b || 0) > (a || 0) ? 'jake' : null;
-    if (lead) wins[lead]++;
-    const cell = (id, v) => `<td class="${lead === id ? 'lead' : ''}">${v ? f(v) : '–'}${lead === id ? ' 👑' : ''}</td>`;
-    return `<tr><td>${label}</td>${cell('noah', a)}${cell('jake', b)}</tr>`;
-  }).join('');
-  $('boardTable').innerHTML = `<tr><th></th><th>NOAH</th><th>JAKE</th></tr>${rows}`;
-  $('boardScore').innerHTML = RIDER_IDS.map(id => `<div class="card"><div class="label">${riders[id].name.toUpperCase()}</div>
-    <div class="val" style="${wins[id] > wins[id === 'noah' ? 'jake' : 'noah'] ? 'color:var(--accent)' : ''}">${wins[id]}</div>
-    <div class="sub">categories won</div></div>`).join('');
-  const all = RIDER_IDS.flatMap(id => riders[id].rides.map(r => ({ ...r, rid: id }))).sort((a, b) => b.id - a.id).slice(0, 20);
-  $('boardHist').innerHTML = all.length ? all.map(r => `<div class="hist"><span class="who">${riders[r.rid].name}</span>
-    <span class="what">${new Date(r.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · ${hms(r.sec)} ·
-    ${r.km.toFixed(1)} km · ${r.avgW} W${r.avgHr ? ' · ' + r.avgHr + ' bpm' : ''}</span>
-    <button data-del="${r.rid}:${r.id}" aria-label="Delete ride">✕</button></div>`).join('')
-    : '<p class="note">No rides yet. Finish a ride and it lands here.</p>';
-  document.querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
-    const [rid, id] = b.dataset.del.split(':');
-    if (confirm('Delete this ride from the stats?')) { deleteRide(rid, +id); renderBoard(); }
-  });
-}
-document.querySelectorAll('#boardTabs button').forEach(b => b.onclick = () => { period = b.dataset.p; renderBoard(); });
 $('btnRider').onclick = () => { renderRiders(); openSheet('sheetRiders'); };
-$('btnBoard').onclick = () => { renderBoard(); renderSyncStatus(); openSheet('sheetBoard'); syncNow(); };
-$('btnExport').onclick = () => {
-  const file = new File([JSON.stringify(riders, (k, v) => k === 'synced' ? undefined : v, 1)], `trainer-stats-${new Date().toISOString().slice(0, 10)}.json`, { type: 'application/json' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name;
-  document.body.appendChild(a); a.click(); a.remove();
-};
-$('btnToken').onclick = () => {
-  const t = $('inToken').value.trim();
-  store.set('ghToken', t); $('inToken').value = ''; renderSyncStatus(); syncNow();
-};
-$('btnImport').onclick = () => $('inImport').click();
-$('inImport').onchange = async e => {
-  try {
-    const data = JSON.parse(await e.target.files[0].text());
-    if (!RIDER_IDS.every(id => data[id] && Array.isArray(data[id].rides))) throw new Error('not a backup file');
-    if (!confirm('Add the rides from this backup?')) return;
-    for (const id of RIDER_IDS) {               // merge: add rides that aren't here yet
-      const have = new Set(riders[id].rides.map(r => r.id));
-      data[id].rides.filter(r => !have.has(r.id)).forEach(r => riders[id].rides.push({ ...r, synced: false }));
-      riders[id].rides.sort((a, b) => b.id - a.id);
-      if (!riders[id].kg && data[id].kg) riders[id].kg = data[id].kg;
-    }
-    saveRiders(); applyRider(); renderBoard(); syncNow();
-  } catch (err) { alert('Could not restore: ' + err.message); }
-  e.target.value = '';
-};
 applyRider();
-syncNow();
 render();
 </script>
 </body>
