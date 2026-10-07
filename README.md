@@ -2,7 +2,7 @@
 
 A web app for indoor rides on a **Magene T100** trainer. It shows live power, cadence, speed, distance, heart rate and calories on an iPhone. Rides are saved to **Noah** or **Jake**, compared on a leaderboard, and can be sent to Strava.
 
-The whole app is one file, `index.html`, hosted free on GitHub Pages.
+The app is one file, `index.html`, hosted free on GitHub Pages. Stats are saved in `stats.json` next to it.
 
 ## What you need
 
@@ -51,7 +51,20 @@ Tap **🏆 Stats** to see Noah vs Jake for this week, this month or all time. Th
 
 A 👑 marks the leader in each category, and the ride list lets you delete a ride.
 
-**Back up regularly.** Stats are stored in Bluefy on that phone only, so deleting Bluefy or clearing its data erases them. Use **Export backup** and **Restore backup** at the bottom of the Stats screen.
+**Shared stats:** All rides and weights are saved in `stats.json` in this repository, so every phone that opens the app sees the same leaderboard. A phone needs a GitHub token (below) to save rides. Without one it can still view the stats, and its rides wait on that phone until a token is added. **Export backup** and **Restore backup** at the bottom of the Stats screen save a copy to a file.
+
+### Setting up saving (once per phone)
+
+1. On GitHub, open **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**.
+2. Fill in the form:
+   - **Name:** anything, e.g. `trainer app`
+   - **Expiration:** the longest option
+   - **Repository access:** **Only select repositories**, then pick this repository.
+   - **Permissions:** under **Repository permissions**, set **Contents** to **Read and write**.
+3. Click **Generate token** and copy it. It starts with `github_pat_`.
+4. In the app, tap **🏆 Stats**, scroll down, paste the token and tap **Save token**.
+
+Never put the token in `index.html` or anywhere else in the repository. Each saved ride adds a small commit called "Update stats".
 
 ## How the numbers work
 

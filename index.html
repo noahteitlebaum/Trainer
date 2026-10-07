@@ -147,8 +147,15 @@
   <table class="board" id="boardTable"></table>
   <h3 class="sec">Recent rides</h3>
   <div id="boardHist"></div>
+  <p class="note" id="syncStatus" style="text-align:center"></p>
+  <div id="ghTokenRow" hidden>
+    <h3 class="sec">GitHub token</h3>
+    <p class="note" style="margin-top:4px" id="ghTokenState"></p>
+    <label class="field">Paste token <input id="inToken" type="password" autocomplete="off" placeholder="github_pat_…"></label>
+    <div class="stack"><button class="big alt" id="btnToken">Save token</button></div>
+  </div>
   <h3 class="sec">Backup</h3>
-  <p class="note" style="margin-top:4px">Stats are saved in Bluefy on this phone only. Export a backup now and then.</p>
+  <p class="note" style="margin-top:4px">Export a copy of all stats to a file. Restoring adds any rides from the file that are missing.</p>
   <div class="stack">
     <button class="big alt" id="btnExport">Export backup</button>
     <button class="big alt" id="btnImport">Restore backup</button>
@@ -545,6 +552,122 @@ if (new URLSearchParams(location.search).has('demo')) {
     onData('hr', new DataView(new Uint8Array([0, 135 + Math.round(10 * Math.sin(Date.now() / 9000))]).buffer));
   }, 1000);
 }
+
+// ============================================================ Shared stats in GitHub (stats.json in this repo)
+// The repo is worked out from the page address: https://<owner>.github.io/<repo>/
+const GH = (() => {
+  const owner = location.hostname.endsWith('.github.io') ? location.hostname.split('.')[0] : '';
+  const first = location.pathname.split('/')[1];
+  const repo = first && !first.includes('.') ? first : `${owner}.github.io`;
+  return { owner, repo, path: 'stats.json' };
+})();
+const cloud = {
+  get on() { return !!GH.owner; },
+  get token() { return store.get('ghToken', ''); },
+  status: 'off', lastSync: 0, busy: false, again: false, error: '',
+  api: () => `https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${GH.path}`,
+  headers(auth) {
+    const h = { Accept: 'application/vnd.github+json' };
+    if (auth && this.token) h.Authorization = `Bearer ${this.token}`;
+    return h;
+  },
+};
+const b64encode = str => btoa(unescape(encodeURIComponent(str)));
+const b64decode = b64 => decodeURIComponent(escape(atob(b64.replace(/\s/g, ''))));
+let pendingDeletes = store.get('pendingDeletes', []);
+let weightsDirty = store.get('weightsDirty', false);
+let kgTimer = null;
+function pushWeight() {
+  weightsDirty = true; store.set('weightsDirty', true);
+  clearTimeout(kgTimer); kgTimer = setTimeout(syncNow, 1500);
+}
+async function readStats() {
+  const res = await fetch(`${cloud.api()}?t=${Date.now()}`, { headers: cloud.headers(true), cache: 'no-store' });
+  if (res.status === 404) return { data: { weights: {}, rides: {} }, sha: null };
+  if (res.status === 401) throw new Error('GitHub token is wrong or expired');
+  if (!res.ok) throw new Error(`GitHub ${res.status}`);
+  const j = await res.json();
+  return { data: JSON.parse(b64decode(j.content) || '{}'), sha: j.sha };
+}
+async function writeStats(data, sha) {
+  const res = await fetch(cloud.api(), { method: 'PUT', headers: cloud.headers(true), body: JSON.stringify({
+    message: `Update stats (${new Date().toISOString().slice(0, 16).replace('T', ' ')})`,
+    content: b64encode(JSON.stringify(data, null, 1) + '\n'), ...(sha ? { sha } : {}) }) });
+  if (res.status === 409 || res.status === 422) return false;   // someone else saved first: re-read and retry
+  if (res.status === 401 || res.status === 403 || res.status === 404) throw new Error('GitHub token can\'t save to this repo');
+  if (!res.ok) throw new Error(`GitHub ${res.status}`);
+  return true;
+}
+async function syncNow() {
+  if (!cloud.on) return;
+  if (cloud.busy) { cloud.again = true; return; }
+  cloud.busy = true; renderSyncStatus();
+  try {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const { data, sha } = await readStats();
+      data.rides = data.rides || {}; data.weights = data.weights || {};
+      const original = JSON.parse(JSON.stringify(data));   // what's online before this phone's changes
+      const del = new Set(pendingDeletes.map(d => `${d.rid}:${d.id}`));
+      let changed = false;
+      for (const id of RIDER_IDS) {
+        let online = (data.rides[id] || []).filter(r => !del.has(`${id}:${r.id}`));
+        if (online.length !== (data.rides[id] || []).length) changed = true;
+        const have = new Set(online.map(r => r.id));
+        for (const r of riders[id].rides.filter(r => !r.synced && !have.has(r.id))) {
+          const { synced, ...rec } = r; online.push(rec); changed = true;
+        }
+        data.rides[id] = online.sort((a, b) => b.id - a.id);
+        if (weightsDirty && riders[id].kg != null && data.weights[id] !== riders[id].kg) { data.weights[id] = riders[id].kg; changed = true; }
+      }
+      if (changed) {
+        if (!cloud.token) {                   // can read, can't write
+          adopt(original); cloud.status = 'notoken'; break;
+        }
+        if (!await writeStats(data, sha)) continue;
+      }
+      pendingDeletes = []; store.set('pendingDeletes', []);
+      weightsDirty = false; store.set('weightsDirty', false);
+      adopt(data);
+      cloud.status = 'ok'; cloud.lastSync = Date.now(); cloud.error = '';
+      break;
+    }
+  } catch (e) {
+    cloud.status = 'offline'; cloud.error = e.message; console.warn('sync failed', e);
+  }
+  cloud.busy = false;
+  renderSyncStatus();
+  if ($('sheetBoard').classList.contains('open')) renderBoard();
+  if ($('sheetRiders').classList.contains('open') && !document.activeElement?.dataset?.kg) renderRiders();
+  if (cloud.again) { cloud.again = false; syncNow(); }
+}
+// Use the online file as the source of truth, keeping anything this phone hasn't uploaded yet
+function adopt(data) {
+  const del = new Set(pendingDeletes.map(d => `${d.rid}:${d.id}`));
+  for (const id of RIDER_IDS) {
+    const online = (data.rides[id] || []).filter(r => !del.has(`${id}:${r.id}`));
+    const ids = new Set(online.map(r => r.id));
+    const localOnly = riders[id].rides.filter(r => !r.synced && !ids.has(r.id));
+    riders[id].rides = [...online.map(r => ({ ...r, synced: true })), ...localOnly].sort((a, b) => b.id - a.id);
+    if (data.weights[id] != null && !weightsDirty) riders[id].kg = data.weights[id];
+  }
+  saveRiders(); applyRider();
+}
+function renderSyncStatus() {
+  const el = $('syncStatus'); if (!el) return;
+  const unsynced = RIDER_IDS.reduce((n, id) => n + riders[id].rides.filter(r => !r.synced).length, 0) + pendingDeletes.length;
+  const waiting = `${unsynced} change${unsynced === 1 ? '' : 's'} waiting to save`;
+  el.textContent = !cloud.on ? 'Open the app from its github.io link to share stats. Saved on this phone for now.'
+    : cloud.busy ? 'Syncing…'
+    : cloud.status === 'ok' ? `✓ Synced with GitHub at ${new Date(cloud.lastSync).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+    : cloud.status === 'notoken' ? `Showing shared stats. ${waiting}. Add a GitHub token below to save from this phone.`
+    : cloud.status === 'offline' ? `Couldn't sync (${cloud.error}). ${waiting}.`
+    : 'Connecting…';
+  $('ghTokenRow').hidden = !cloud.on;
+  $('ghTokenState').textContent = cloud.token ? 'Token saved on this phone ✓' : 'No token on this phone yet';
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncNow(); });
+window.addEventListener('online', syncNow);
+
 // ============================================================ Riders & leaderboard
 const RIDER_IDS = ['noah', 'jake'];
 const riders = store.get('riders', null) || {
@@ -572,6 +695,7 @@ function renderRiders() {
     const v = parseFloat(inp.value);
     riders[inp.dataset.kg].kg = v >= 30 && v <= 200 ? v : null;
     saveRiders(); applyRider();
+    if (riders[inp.dataset.kg].kg) pushWeight();
   });
   document.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => {
     if (ride.state === 'riding' || ride.state === 'paused') return showBanner('Finish the current ride before switching rider.', true);
@@ -597,10 +721,15 @@ function saveRide() {
     avgHr: ride.maxHr ? Math.round(avg.hr()) : null, maxHr: ride.maxHr || null,
     kcal: Math.round(ride.joules / 1000), cad: live.hasCadence ? Math.round(avg.cadence()) : null,
     best1: bestAvg(p, 60), best5: bestAvg(p, 300), best20: bestAvg(p, 1200), kg: settings.kg };
-  rider().rides.unshift(rec); saveRiders(); applyRider();
+  rider().rides.unshift(rec); saveRiders(); applyRider(); syncNow();
   return rec.id;
 }
-function deleteRide(rid, id) { riders[rid].rides = riders[rid].rides.filter(r => r.id !== id); saveRiders(); }
+function deleteRide(rid, id) {
+  const r = riders[rid].rides.find(r => r.id === id);
+  riders[rid].rides = riders[rid].rides.filter(r => r.id !== id); saveRiders();
+  if (r && r.synced) { pendingDeletes.push({ rid, id }); store.set('pendingDeletes', pendingDeletes); }
+  syncNow();
+}
 
 let period = 'week';
 function inPeriod(r) {
@@ -661,23 +790,34 @@ function renderBoard() {
 }
 document.querySelectorAll('#boardTabs button').forEach(b => b.onclick = () => { period = b.dataset.p; renderBoard(); });
 $('btnRider').onclick = () => { renderRiders(); openSheet('sheetRiders'); };
-$('btnBoard').onclick = () => { renderBoard(); openSheet('sheetBoard'); };
+$('btnBoard').onclick = () => { renderBoard(); renderSyncStatus(); openSheet('sheetBoard'); syncNow(); };
 $('btnExport').onclick = () => {
-  const file = new File([JSON.stringify(riders, null, 1)], `trainer-stats-${new Date().toISOString().slice(0, 10)}.json`, { type: 'application/json' });
+  const file = new File([JSON.stringify(riders, (k, v) => k === 'synced' ? undefined : v, 1)], `trainer-stats-${new Date().toISOString().slice(0, 10)}.json`, { type: 'application/json' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name;
   document.body.appendChild(a); a.click(); a.remove();
+};
+$('btnToken').onclick = () => {
+  const t = $('inToken').value.trim();
+  store.set('ghToken', t); $('inToken').value = ''; renderSyncStatus(); syncNow();
 };
 $('btnImport').onclick = () => $('inImport').click();
 $('inImport').onchange = async e => {
   try {
     const data = JSON.parse(await e.target.files[0].text());
     if (!RIDER_IDS.every(id => data[id] && Array.isArray(data[id].rides))) throw new Error('not a backup file');
-    if (!confirm('Replace the current stats with this backup?')) return;
-    RIDER_IDS.forEach(id => riders[id] = data[id]); saveRiders(); applyRider(); renderBoard();
+    if (!confirm('Add the rides from this backup?')) return;
+    for (const id of RIDER_IDS) {               // merge: add rides that aren't here yet
+      const have = new Set(riders[id].rides.map(r => r.id));
+      data[id].rides.filter(r => !have.has(r.id)).forEach(r => riders[id].rides.push({ ...r, synced: false }));
+      riders[id].rides.sort((a, b) => b.id - a.id);
+      if (!riders[id].kg && data[id].kg) riders[id].kg = data[id].kg;
+    }
+    saveRiders(); applyRider(); renderBoard(); syncNow();
   } catch (err) { alert('Could not restore: ' + err.message); }
   e.target.value = '';
 };
 applyRider();
+syncNow();
 render();
 </script>
 </body>
