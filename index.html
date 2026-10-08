@@ -377,7 +377,7 @@ function tick() {
   ride.joules += live.power * dt;
   ride.maxPower = Math.max(ride.maxPower, live.power);
   ride.maxHr = Math.max(ride.maxHr, live.hr);
-  ride.samples.push({ t: new Date(now), p: live.power, c: live.cadence, s: live.speed, h: live.hr, d: ride.dist });
+  ride.samples.push({ t: new Date(now), a: ride.activeSec, p: live.power, c: live.cadence, s: live.speed, h: live.hr, d: ride.dist });
   render();
 }
 const avg = {
@@ -391,8 +391,11 @@ const avg = {
 function iso(t) { return t.toISOString().replace(/\.\d+Z$/, 'Z'); }
 function buildTcx(name) {
   const kcal = Math.round(ride.joules / 1000);
+  // Timestamps count only riding time, so pauses don't show up on Strava as extra minutes
+  let lastSec = -1;
+  const rideTime = s => { lastSec = Math.max(Math.round(s.a), lastSec + 1); return new Date(ride.startedAt.getTime() + lastSec * 1000); };
   const pts = ride.samples.map(s =>
-    `<Trackpoint><Time>${iso(s.t)}</Time><DistanceMeters>${s.d.toFixed(1)}</DistanceMeters>` +
+    `<Trackpoint><Time>${iso(rideTime(s))}</Time><DistanceMeters>${s.d.toFixed(1)}</DistanceMeters>` +
     (s.h > 0 ? `<HeartRateBpm><Value>${s.h}</Value></HeartRateBpm>` : '') +
     (s.c > 0 ? `<Cadence>${Math.min(254, Math.round(s.c))}</Cadence>` : '') +
     `<Extensions><ns3:TPX><ns3:Speed>${(s.s / 3.6).toFixed(2)}</ns3:Speed><ns3:Watts>${s.p}</ns3:Watts></ns3:TPX></Extensions></Trackpoint>`
